@@ -39,3 +39,17 @@ This is a full-stack enrollment system with:
     npm run dev
 
 ## Quick start (Frontend)
+
+
+
+## Available Scripts
+### Backend
+
+| Command                 | Description                     |
+| ----------------------- | ------------------------------- |
+| `npm run dev`           | Start backend with hot reload   |
+| `npm run build`         | Compile TypeScript to `dist`    |
+| `npm run start`         | Run compiled `dist`             |
+| `npm run migration:run` | Run pending migrations          |
+| `npm run seed`          | Seed database with initial data |
+| `npm test`              | Run unit/integration tests      |
