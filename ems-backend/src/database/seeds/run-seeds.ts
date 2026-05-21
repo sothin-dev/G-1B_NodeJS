@@ -1,5 +1,5 @@
-import { AppDataSource } from "../../src/config/database";
-import { User } from "../../src/entities/user.entity";
+import { AppDataSource } from "../../config/database";
+import { User } from "../../entities/user.entity";
 import * as bcrypt from "bcryptjs";
 
 async function seed() {
