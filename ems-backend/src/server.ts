@@ -1,40 +1,27 @@
-import * as dotenv from "dotenv";
-dotenv.config();
+import 'dotenv/config'        // ← moved to line 1, replaces dotenv import + dotenv.config()
+import 'reflect-metadata'
+import express from 'express'
+import cors from 'cors'
+import { AppDataSource } from './config/database'
+import { errorMiddleware } from './middleware/error.middleware'
+import router from './routes/index.routes'
 
-import "reflect-metadata";
-import express from "express";
-import { AppDataSource } from "./config/database";
-import logger from "./config/logger"; // assuming you have Winston setup
-import { env } from "./config/env";
+const app = express()
 
-const app = express();
-app.use(express.json());
+app.use(cors())
+app.use(express.json())
+app.use('/api/v1', router)
+app.use(errorMiddleware)
 
-// Health check endpoint
-app.get("/health", (req, res) => res.json({ status: "ok", timestamp: new Date() }));
+const PORT = process.env.PORT || 5000
 
-// Start server only after DB connection
 AppDataSource.initialize()
   .then(() => {
-    logger.info("Database connected successfully");
-    const server = app.listen(env.port, () => {
-      logger.info(`Server running on http://localhost:${env.port}`);
-    });
-
-    // Graceful shutdown
-    const shutdown = async (signal: string) => {
-      logger.info(`${signal} received, closing server...`);
-      server.close(async () => {
-        await AppDataSource.destroy();
-        logger.info("Database connection closed");
-        process.exit(0);
-      });
-    };
-
-    process.on("SIGTERM", () => shutdown("SIGTERM"));
-    process.on("SIGINT", () => shutdown("SIGINT"));
+    console.log('Database connected')
+    app.listen(PORT, () =>
+      console.log(`Server running on port http://localhost:${PORT}`)
+    )
   })
-  .catch((err: unknown) => {
-    logger.error("Database connection failed:", err);
-    process.exit(1);
-  });
+  .catch((err) => console.error('DB connection failed:', err))
+
+export default app

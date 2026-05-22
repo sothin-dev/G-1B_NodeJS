@@ -20,12 +20,12 @@ import { Grade } from "../entities/grade.entity";
 export const AppDataSource = new DataSource({
   type: "mysql",
   host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || "3306"),
+  port: Number(process.env.DB_PORT || "3306"),
   username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  synchronize: false,
-  logging: true,
+  synchronize: true,
+  logging: false,
   entities: [
     Role,
     Permission,
@@ -43,6 +43,12 @@ export const AppDataSource = new DataSource({
     Grade,
   ],
   migrations: ["src/database/migrations/*.ts"],
+  connectorPackage: 'mysql2',
+  extra: {
+    authPlugins: {
+      caching_sha2_password: () => () => Buffer.from(process.env.DB_PASSWORD + '\0'),
+    },
+  },
 });
 
 console.log("DB CONFIG:", {
