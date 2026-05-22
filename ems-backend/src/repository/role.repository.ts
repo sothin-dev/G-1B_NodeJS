@@ -13,6 +13,12 @@ class RoleRepository {
     });
 
   }
+
+  async findById(id: number) {
+    return await this.repo.findOne({
+      where: { id }
+    });
+  };
 }
 
 export default new RoleRepository();

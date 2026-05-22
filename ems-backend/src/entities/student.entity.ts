@@ -19,14 +19,6 @@ export class Student {
   @Column({ unique: true })
   student_number: string;
 
-  @Column()
-  first_name: string;
-
-  @Column()
-  last_name: string;
-
-  @Column({ unique: true })
-  email: string;
 
   @Column({ name: 'department_id', nullable: true })
   departmentId: number;

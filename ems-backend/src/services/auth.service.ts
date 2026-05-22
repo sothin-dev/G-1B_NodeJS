@@ -25,38 +25,35 @@ class AuthService {
   async register(data: RegisterDto) {
 
   const existingUser =
-    await authRepository.findByEmail(
-      data.email
-    );
+    await authRepository.findByEmail(data.email);
 
   if (existingUser) {
-    throw new Error(
-      "Email already exists"
-    );
+    throw new Error("Email already exists");
   }
 
   const hashedPassword =
-    await hashPassword(
-      data.password
-    );
+    await hashPassword(data.password);
 
-  const studentRole =
-    await roleRepository.findByName(
-      Roles.STUDENT
-    );
+  // DEFAULT ROLE = STUDENT
+  let role = await roleRepository.findByName(Roles.STUDENT);
 
-  if (!studentRole) {
-    throw new Error(
-      "Student role not found"
-    );
+  if (!role) {
+    throw new Error("Student role not found");
   }
 
-  const user =
-    await authRepository.create({
-      email: data.email,
-      password: hashedPassword,
-      role: studentRole
-    });
+  // If roleId is provided (only allowed for admin flow)
+  if (data.roleID) {
+    const customRole = await roleRepository.findById(data.roleID);
+    if (customRole) {
+      role = customRole;
+    }
+  }
+
+  const user = await authRepository.create({
+    email: data.email,
+    password: hashedPassword,
+    role: role
+  });
 
   return {
     id: user.id,
