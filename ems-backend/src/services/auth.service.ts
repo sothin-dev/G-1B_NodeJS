@@ -1,139 +1,122 @@
 import authRepository from "../repository/auth.repository";
+import roleRepository from "../repository/role.repository";
+import "dotenv/config";
 
-import {
-  hashPassword,
-  comparePassword
-} from "../utils/hash-password";
+import { hashPassword, comparePassword } from "../utils/hash-password";
 
 import {
   generateAccessToken,
-  generateRefreshToken
+  generateRefreshToken,
 } from "../utils/generate-token";
 
-import { RegisterDto }
-from "../dto/register.dto";
+import { RegisterDto } from "../dto/register.dto";
+import { LoginDto } from "../dto/login.dto";
 
-import { LoginDto }
-from "../dto/login.dto";
+import { Roles } from "../constants/roles";
 
-import { Roles }
-from "../constants/roles";
-import roleRepository from "../repository/role.repository";
+import { AppError } from "../core/errors/app-error";
 
 class AuthService {
-
   async register(data: RegisterDto) {
+    // console.log(data);
+    const existingUser = await authRepository.findByEmail(data.email);
 
-  const existingUser =
-    await authRepository.findByEmail(data.email);
+    if (existingUser) {
+      throw new AppError("Email already exists", 409);
+    }
 
-  if (existingUser) {
-    throw new Error("Email already exists");
-  }
+    const hashedPassword = await hashPassword(data.password);
 
-  const hashedPassword =
-    await hashPassword(data.password);
+    // DEFAULT ROLE = STUDENT
+    let role = await roleRepository.findByName(Roles.STUDENT);
 
-  // DEFAULT ROLE = STUDENT
-  let role = await roleRepository.findByName(Roles.STUDENT);
+    if (!role) {
+      throw new AppError("Student role not found", 404);
+    }
 
-  if (!role) {
-    throw new Error("Student role not found");
-  }
+    // Optional custom role
+    if (data.roleID) {
+      const customRole = await roleRepository.findById(data.roleID);
 
-  // If roleId is provided (only allowed for admin flow)
-  if (data.roleID) {
-    const customRole = await roleRepository.findById(data.roleID);
-    if (customRole) {
+      if (!customRole) {
+        throw new AppError("Selected role not found", 404);
+      }
+
       role = customRole;
     }
+
+    const user = await authRepository.create({
+      first_name: data.firstName,
+      last_name: data.lastName,
+      email: data.email,
+      password: hashedPassword,
+      role,
+    });
+
+    const payload = {
+      id: user.id,
+      email: user.email,
+      role: user.role.name,
+    };
+
+    const accessToken = generateAccessToken(payload);
+
+    return {
+      firstName: user.first_name,
+      lastName: user.last_name,
+      id: user.id,
+      email: user.email,
+      role: user.role.name,
+      Token: accessToken,
+    };
   }
 
-  const user = await authRepository.create({
-    email: data.email,
-    password: hashedPassword,
-    role: role
-  });
-
-  return {
-    id: user.id,
-    email: user.email,
-    role: user.role.name
-  };
-}
-
   async login(data: LoginDto) {
-
-    const user =
-      await authRepository.findByEmail(
-        data.email
-      );
+    const user = await authRepository.findByEmail(data.email);
 
     if (!user) {
-      throw new Error(
-        "Invalid credentials"
-      );
+      throw new AppError("Invalid email or password", 401);
     }
 
-    const isMatch =
-      await comparePassword(
-        data.password,
-        user.password
-      );
+    const isMatch = await comparePassword(data.password, user.password);
 
     if (!isMatch) {
-      throw new Error(
-        "Invalid credentials"
-      );
+      throw new AppError("Invalid email or password", 401);
     }
 
     const payload = {
       id: user.id,
       email: user.email,
-      role: user.role
+      role: user.role.name,
     };
 
-    const accessToken =
-      generateAccessToken(payload);
+    const accessToken = generateAccessToken(payload);
 
-    const refreshToken =
-      generateRefreshToken(payload);
+    const refreshToken = generateRefreshToken(payload);
 
-    await authRepository.updateRefreshToken(
-      user.id,
-      refreshToken
-    );
+    await authRepository.updateRefreshToken(user.id, refreshToken);
 
     return {
       user: {
         id: user.id,
         email: user.email,
-        role: user.role
+        role: user.role.name,
       },
       accessToken,
-      refreshToken
+      refreshToken,
     };
   }
 
   async logout(userId: number) {
-
-    const user =
-      await authRepository.findById(
-        userId
-      );
+    const user = await authRepository.findById(userId);
 
     if (!user) {
-      throw new Error(
-        "User not found"
-      );
+      throw new AppError("User not found", 404);
     }
 
-    await authRepository.updateRefreshToken(
-      userId,
-      ""
-    );
+    await authRepository.updateRefreshToken(userId, "");
 
-    return true;
+    return "logout Successful";
   }
 }
 

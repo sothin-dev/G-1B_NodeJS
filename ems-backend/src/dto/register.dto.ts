@@ -1,6 +1,5 @@
 import {
   IsEmail,
-  isNumber,
   IsString,
   IsOptional,
   MinLength,
@@ -9,6 +8,12 @@ import {
 
 export class RegisterDto {
 
+  @IsString()
+  firstName: string;
+
+  @IsString()
+  lastName: string;
+
   @IsEmail()
   email: string;
 
@@ -16,8 +21,7 @@ export class RegisterDto {
   @MinLength(6)
   password: string;
 
-  //optional
-  @IsNumber()
   @IsOptional()
-  roleID: number;
+  @IsNumber()
+  roleID?: number;
 }
