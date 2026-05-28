@@ -15,10 +15,11 @@ import { LoginDto } from "../dto/login.dto";
 import { Roles } from "../constants/roles";
 
 import { AppError } from "../core/errors/app-error";
+import studentRepository from "../repository/student.repository";
+import { StudentStatus } from "../entities/student.entity";
 
 class AuthService {
   async register(data: RegisterDto) {
-    // console.log(data);
     const existingUser = await authRepository.findByEmail(data.email);
 
     if (existingUser) {
@@ -31,18 +32,9 @@ class AuthService {
     let role = await roleRepository.findByName(Roles.STUDENT);
 
     if (!role) {
-      throw new AppError("Student role not found", 404);
-    }
-
-    // Optional custom role
-    if (data.roleID) {
-      const customRole = await roleRepository.findById(data.roleID);
-
-      if (!customRole) {
-        throw new AppError("Selected role not found", 404);
-      }
-
-      role = customRole;
+      role = await roleRepository.create({
+        name: Roles.STUDENT,
+      });
     }
 
     const user = await authRepository.create({
@@ -50,24 +42,34 @@ class AuthService {
       last_name: data.lastName,
       email: data.email,
       password: hashedPassword,
-      role,
+      roleId: role.id,
     });
+
+    try {
+      await studentRepository.create({
+        user: { id: user.id } as any,
+        status: StudentStatus.ACTIVE,
+        enrollment_year: new Date().getFullYear(),
+      });
+    } catch (err) {
+      console.error("STUDENT CREATE ERROR:", err);
+    }
 
     const payload = {
       id: user.id,
       email: user.email,
-      role: user.role.name,
+      role: role.name,
     };
 
-    const accessToken = generateAccessToken(payload);
+    // const accessToken = generateAccessToken(payload);
 
     return {
       firstName: user.first_name,
       lastName: user.last_name,
       id: user.id,
       email: user.email,
-      role: user.role.name,
-      Token: accessToken,
+      role: role.name,
+      // Token: accessToken,
     };
   }
 
@@ -107,11 +109,15 @@ class AuthService {
     };
   }
 
-  async logout(userId: number) {
+  async logout(userId: string) {
     const user = await authRepository.findById(userId);
 
     if (!user) {
       throw new AppError("User not found", 404);
+    }
+
+    if (!user.refresh_token || user.refresh_token.trim() === "") {
+      return "User is already logged out";
     }
 
     await authRepository.updateRefreshToken(userId, "");

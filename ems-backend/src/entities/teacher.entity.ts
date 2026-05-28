@@ -1,18 +1,17 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToOne, OneToMany } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, OneToOne, OneToMany } from 'typeorm';
+import { BaseEntity } from './baseEntity';
 import { Department } from './department.entity';
 import { User } from './user.entity';
 import { Course } from './course.entity';
 
 @Entity('teachers')
-export class Teacher {
-  @PrimaryGeneratedColumn()
-  id: number;
+export class Teacher extends BaseEntity {
 
   @Column({ name: 'user_id', unique: true })
-  userId: number;
+  userId: string;
 
   @Column({ name: 'department_id', nullable: true })
-  departmentId: number;
+  departmentId: string;
 
   @OneToOne(() => User, user => user.teacher)
   @JoinColumn({ name: 'user_id' })

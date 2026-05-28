@@ -1,17 +1,15 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { BaseEntity } from './baseEntity';
 import { Student } from './student.entity';
 import { Course } from './course.entity';
 
 @Entity('grades')
-export class Grade {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class Grade extends BaseEntity {
   @Column({ name: 'student_id' })
-  studentId: number;
+  studentId: string;
 
   @Column({ name: 'course_id' })
-  courseId: number;
+  courseId: string;
 
   @Column({ type: 'float', nullable: true })
   assignment_score: number;

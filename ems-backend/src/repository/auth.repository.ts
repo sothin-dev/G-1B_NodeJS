@@ -20,10 +20,10 @@ class AuthRepository extends BaseRepository<User> {
     });
   }
 
-  async updateRefreshToken(id: number, token: string) {
+  async updateRefreshToken(id: string, token: string) {
     return this.repo.update(
       { id },
-      { refresh_token: token }, // MUST match DB column
+      { refresh_token: token }, 
     );
   }
 }

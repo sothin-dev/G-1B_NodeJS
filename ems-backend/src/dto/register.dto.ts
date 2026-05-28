@@ -3,7 +3,7 @@ import {
   IsString,
   IsOptional,
   MinLength,
-  IsNumber
+  IsUUID
 } from "class-validator";
 
 export class RegisterDto {
@@ -20,8 +20,4 @@ export class RegisterDto {
   @IsString()
   @MinLength(6)
   password: string;
-
-  @IsOptional()
-  @IsNumber()
-  roleID?: number;
 }
