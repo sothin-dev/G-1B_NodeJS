@@ -1,21 +1,27 @@
 import {
   Entity,
-  PrimaryGeneratedColumn,
   Column,
   ManyToOne,
   JoinColumn,
   OneToMany,
   OneToOne,
 } from "typeorm";
+
+import { BaseEntity } from "./baseEntity";
+
 import { Role } from "./role.entity";
 import { ActivityLog } from "./activity-log.entity";
 import { Teacher } from "./teacher.entity";
 import { Student } from "./student.entity";
 
 @Entity("users")
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
+export class User extends BaseEntity {
+  
+  @Column()
+  first_name: string;
+
+  @Column()
+  last_name: string;
 
   @Column({ unique: true })
   email: string;
@@ -24,13 +30,10 @@ export class User {
   password: string; // hashed
 
   @Column({ name: "role_id" })
-  roleId: number;
+  roleId: string;
 
   @Column({ default: true })
   is_active: boolean;
-
-  @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
-  created_at: Date;
 
   @Column({
     nullable: true,

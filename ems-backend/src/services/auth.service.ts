@@ -1,142 +1,128 @@
 import authRepository from "../repository/auth.repository";
+import roleRepository from "../repository/role.repository";
+import "dotenv/config";
 
-import {
-  hashPassword,
-  comparePassword
-} from "../utils/hash-password";
+import { hashPassword, comparePassword } from "../utils/hash-password";
 
 import {
   generateAccessToken,
-  generateRefreshToken
+  generateRefreshToken,
 } from "../utils/generate-token";
 
-import { RegisterDto }
-from "../dto/register.dto";
+import { RegisterDto } from "../dto/register.dto";
+import { LoginDto } from "../dto/login.dto";
 
-import { LoginDto }
-from "../dto/login.dto";
+import { Roles } from "../constants/roles";
 
-import { Roles }
-from "../constants/roles";
-import roleRepository from "../repository/role.repository";
+import { AppError } from "../core/errors/app-error";
+import studentRepository from "../repository/student.repository";
+import { StudentStatus } from "../entities/student.entity";
 
 class AuthService {
-
   async register(data: RegisterDto) {
+    const existingUser = await authRepository.findByEmail(data.email);
 
-  const existingUser =
-    await authRepository.findByEmail(
-      data.email
-    );
-
-  if (existingUser) {
-    throw new Error(
-      "Email already exists"
-    );
-  }
-
-  const hashedPassword =
-    await hashPassword(
-      data.password
-    );
-
-  const studentRole =
-    await roleRepository.findByName(
-      Roles.STUDENT
-    );
-
-  if (!studentRole) {
-    throw new Error(
-      "Student role not found"
-    );
-  }
-
-  const user =
-    await authRepository.create({
-      email: data.email,
-      password: hashedPassword,
-      role: studentRole
-    });
-
-  return {
-    id: user.id,
-    email: user.email,
-    role: user.role.name
-  };
-}
-
-  async login(data: LoginDto) {
-
-    const user =
-      await authRepository.findByEmail(
-        data.email
-      );
-
-    if (!user) {
-      throw new Error(
-        "Invalid credentials"
-      );
+    if (existingUser) {
+      throw new AppError("Email already exists", 409);
     }
 
-    const isMatch =
-      await comparePassword(
-        data.password,
-        user.password
-      );
+    const hashedPassword = await hashPassword(data.password);
 
-    if (!isMatch) {
-      throw new Error(
-        "Invalid credentials"
-      );
+    // DEFAULT ROLE = STUDENT
+    let role = await roleRepository.findByName(Roles.STUDENT);
+
+    if (!role) {
+      role = await roleRepository.create({
+        name: Roles.STUDENT,
+      });
+    }
+
+    const user = await authRepository.create({
+      first_name: data.firstName,
+      last_name: data.lastName,
+      email: data.email,
+      password: hashedPassword,
+      roleId: role.id,
+    });
+
+    try {
+      await studentRepository.create({
+        user: { id: user.id } as any,
+        status: StudentStatus.ACTIVE,
+        enrollment_year: new Date().getFullYear(),
+      });
+    } catch (err) {
+      console.error("STUDENT CREATE ERROR:", err);
     }
 
     const payload = {
       id: user.id,
       email: user.email,
-      role: user.role
+      role: role.name,
     };
 
-    const accessToken =
-      generateAccessToken(payload);
+    // const accessToken = generateAccessToken(payload);
 
-    const refreshToken =
-      generateRefreshToken(payload);
+    return {
+      firstName: user.first_name,
+      lastName: user.last_name,
+      id: user.id,
+      email: user.email,
+      role: role.name,
+      // Token: accessToken,
+    };
+  }
 
-    await authRepository.updateRefreshToken(
-      user.id,
-      refreshToken
-    );
+  async login(data: LoginDto) {
+    const user = await authRepository.findByEmail(data.email);
+
+    if (!user) {
+      throw new AppError("Invalid email or password", 401);
+    }
+
+    const isMatch = await comparePassword(data.password, user.password);
+
+    if (!isMatch) {
+      throw new AppError("Invalid email or password", 401);
+    }
+
+    const payload = {
+      id: user.id,
+      email: user.email,
+      role: user.role.name,
+    };
+
+    const accessToken = generateAccessToken(payload);
+
+    const refreshToken = generateRefreshToken(payload);
+
+    await authRepository.updateRefreshToken(user.id, refreshToken);
 
     return {
       user: {
         id: user.id,
         email: user.email,
-        role: user.role
+        role: user.role.name,
       },
       accessToken,
-      refreshToken
+      refreshToken,
     };
   }
 
-  async logout(userId: number) {
-
-    const user =
-      await authRepository.findById(
-        userId
-      );
+  async logout(userId: string) {
+    const user = await authRepository.findById(userId);
 
     if (!user) {
-      throw new Error(
-        "User not found"
-      );
+      throw new AppError("User not found", 404);
     }
 
-    await authRepository.updateRefreshToken(
-      userId,
-      ""
-    );
+    if (!user.refresh_token || user.refresh_token.trim() === "") {
+      return "User is already logged out";
+    }
 
-    return true;
+    await authRepository.updateRefreshToken(userId, "");
+
+    return "logout Successful";
   }
 }
 

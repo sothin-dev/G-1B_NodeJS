@@ -1,33 +1,49 @@
 import {
   Repository,
+  ObjectLiteral,
   DeepPartial,
-  ObjectLiteral
+  FindOptionsWhere,
 } from "typeorm";
 
-export abstract class BaseRepository<
-  T extends ObjectLiteral
-> {
+import { QueryDeepPartialEntity } from "typeorm/query-builder/QueryPartialEntity";
 
+export abstract class BaseRepository<
+  T extends ObjectLiteral,
+  ID = string
+> {
   constructor(
-    protected repo: Repository<T>
+    protected readonly repo: Repository<T>
   ) {}
 
-  async findById(id: number) {
+  async create(data: DeepPartial<T>) {
+    const entity = this.repo.create(data);
 
-    return this.repo.findOneBy({
-      id
-    } as any);
-
+    return await this.repo.save(entity);
   }
 
-  async create(
-    data: DeepPartial<T>
+  async findById(id: ID) {
+    return await this.repo.findOne({
+      where: {
+        id,
+      } as FindOptionsWhere<T>,
+    });
+  }
+
+  async update(
+    id: ID,
+    data: QueryDeepPartialEntity<T>
   ) {
+    await this.repo.update(
+      id as any,
+      data
+    );
 
-    const entity =
-      this.repo.create(data);
+    return this.findById(id);
+  }
 
-    return this.repo.save(entity);
-
+  async delete(id: ID) {
+    return await this.repo.delete(
+      id as any
+    );
   }
 }
