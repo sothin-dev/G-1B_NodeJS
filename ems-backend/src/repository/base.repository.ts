@@ -15,6 +15,10 @@ export abstract class BaseRepository<
     protected readonly repo: Repository<T>
   ) {}
 
+  async findAll(){
+    return await this.repo.find()
+  }
+
   async create(data: DeepPartial<T>) {
     const entity = this.repo.create(data);
 
