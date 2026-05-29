@@ -45,4 +45,20 @@ export abstract class BaseRepository<T extends ObjectLiteral, ID = string> {
       } as any,
     });
   }
+
+  async findOne(
+    where: FindOptionsWhere<T>
+  ) {
+    return this.repo.findOne({
+      where,
+    });
+  }
+
+  async findMany(
+    where: FindOptionsWhere<T>
+  ) {
+    return this.repo.find({
+      where,
+    });
+  }
 }
