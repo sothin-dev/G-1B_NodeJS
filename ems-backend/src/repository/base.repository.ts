@@ -7,16 +7,11 @@ import {
 
 import { QueryDeepPartialEntity } from "typeorm/query-builder/QueryPartialEntity";
 
-export abstract class BaseRepository<
-  T extends ObjectLiteral,
-  ID = string
-> {
-  constructor(
-    protected readonly repo: Repository<T>
-  ) {}
+export abstract class BaseRepository<T extends ObjectLiteral, ID = string> {
+  constructor(protected readonly repo: Repository<T>) {}
 
-  async findAll(){
-    return await this.repo.find()
+  async findAll() {
+    return await this.repo.find();
   }
 
   async create(data: DeepPartial<T>) {
@@ -33,21 +28,21 @@ export abstract class BaseRepository<
     });
   }
 
-  async update(
-    id: ID,
-    data: QueryDeepPartialEntity<T>
-  ) {
-    await this.repo.update(
-      id as any,
-      data
-    );
+  async update(id: ID, data: QueryDeepPartialEntity<T>) {
+    await this.repo.update(id as any, data);
 
     return this.findById(id);
   }
 
   async delete(id: ID) {
-    return await this.repo.delete(
-      id as any
-    );
+    return await this.repo.delete(id as any);
+  }
+
+  async findByEmail(email: string) {
+    return this.repo.findOne({
+      where: {
+        email,
+      } as any,
+    });
   }
 }

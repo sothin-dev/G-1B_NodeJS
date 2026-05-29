@@ -36,6 +36,7 @@ export class User extends BaseEntity {
   is_active: boolean;
 
   @Column({
+    type: 'text',
     nullable: true,
   })
   refresh_token: string;
