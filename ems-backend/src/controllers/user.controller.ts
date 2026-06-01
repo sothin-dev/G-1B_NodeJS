@@ -12,6 +12,9 @@ import {
 
 class UserController {
 
+  /**
+   * Get all users
+   */
   getAllUsers = async (
     req: Request,
     res: Response,
@@ -32,6 +35,9 @@ class UserController {
     }
   };
 
+  /**
+   * Create users
+   */
   createUser = async (
     req: Request,
     res: Response,
@@ -55,6 +61,9 @@ class UserController {
     }
   };
 
+  /**
+   * update users
+   */
   updateUser = async (
     req: Request,
     res: Response,
@@ -78,6 +87,9 @@ class UserController {
     }
   };
 
+  /**
+   * Deactivate users (supend)
+   */
   deactivateUser = async (
     req: Request,
     res: Response,
@@ -100,6 +112,9 @@ class UserController {
     }
   };
 
+  /**
+   * Active user again
+   */
   reactivateUser = async (
     req: Request,
     res: Response,
