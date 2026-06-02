@@ -1,6 +1,7 @@
 import { AppDataSource } from "../config/database";
 import { BaseRepository } from "./base.repository";
 import { Course } from "../entities/course.entity";
+import { EnrollmentCourse } from "../entities/enrollment-course.entity";
 
 class CourseRepository extends BaseRepository<Course> {
   constructor() {
@@ -59,10 +60,14 @@ class CourseRepository extends BaseRepository<Course> {
       relations: [
         "department",
         "teacher",
+        "schedules",
       ],
     });
   }
 
+  async saveCourse(course: Course) {
+    return this.repo.save(course);
+  }
 }
 
 export default new CourseRepository();
