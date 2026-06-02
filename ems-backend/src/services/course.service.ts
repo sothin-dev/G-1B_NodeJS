@@ -1,6 +1,10 @@
 import "dotenv/config";
-import { AppDataSource } from "../config/database";
-import { Course } from "../entities/course.entity";
+import courseRepository from "../repository/course.repository";
+import teacherRepository from "../repository/teacher.repository";
+import departmentRepository from "../repository/department.repository";
+import { CreateCourseDto } from "../dto/createCourse.dto";
+
+import { AppError } from "../core/errors/app-error";
 
 class CourseService {
   async listCourses(filters: {
@@ -8,39 +12,54 @@ class CourseService {
     teacherId?: string;
     semesterId?: string;
   }) {
-    const courseRepo = AppDataSource.getRepository(Course);
+    return courseRepository.listCourses(filters);
+  }
 
-    const qb = courseRepo
-      .createQueryBuilder("course")
-      .leftJoinAndSelect("course.department", "department")
-      .leftJoinAndSelect("course.teacher", "teacher")
-      .leftJoinAndSelect("course.schedules", "schedules")
-      .leftJoinAndSelect("course.enrollmentCourses", "enrollmentCourses")
-      .leftJoinAndSelect("enrollmentCourses.enrollment", "enrollment")
-      .leftJoinAndSelect("enrollment.semester", "semester");
+   async create(data: CreateCourseDto) {
+    const existing =
+      await courseRepository.findByCode(
+        data.code
+      );
 
-    if (filters.departmentId) {
-      qb.andWhere("course.departmentId = :departmentId", {
-        departmentId: filters.departmentId,
-      });
+    if (existing) {
+      throw new AppError(
+        "Course code already exists",
+        409
+      );
     }
 
-    if (filters.teacherId) {
-      qb.andWhere("course.teacherId = :teacherId", {
-        teacherId: filters.teacherId,
-      });
+    const department =
+      await departmentRepository.findById(
+        data.department_id
+      );
+
+    if (!department) {
+      throw new AppError(
+        "Department not found",
+        404
+      );
     }
 
-    if (filters.semesterId) {
-      qb.andWhere("semester.id = :semesterId", {
-        semesterId: filters.semesterId,
-      });
+    const teacher =
+      await teacherRepository.findById(
+        data.teacher_id
+      );
+
+    if (!teacher) {
+      throw new AppError(
+        "Teacher not found",
+        404
+      );
     }
 
-    qb.orderBy("course.created_at", "DESC");
-    qb.distinct(true);
-
-    return qb.getMany();
+    return courseRepository.create({
+      name: data.name,
+      code: data.code,
+      credit: data.credit,
+      capacity: data.capacity,
+      department,
+      teacher,
+    });
   }
 }
 
