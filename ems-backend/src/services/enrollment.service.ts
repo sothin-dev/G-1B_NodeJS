@@ -1,12 +1,12 @@
 // src/services/enrollment.service.ts
 import { AppDataSource } from '../config/database'
-import { Enrollment } from '../models/Enrollment'
-import { EnrollmentCourse } from '../models/EnrollmentCourse'
-import { Course } from '../models/Course'
-import { Schedule } from '../models/Schedule'
-import { Semester } from '../models/Semester'
-import { Student } from '../models/Student'
-import { AppError } from '../middleware/error.middleware'
+import { Enrollment, EnrollmentStatus } from '../entities/enrollment.entity'
+import { EnrollmentCourse } from '../entities/enrollment-course.entity'
+import { Course } from '../entities/course.entity'
+import { Schedule } from '../entities/schedule.entity'
+import { Semester } from '../entities/semester.entity'
+import { Student } from '../entities/student.entity'
+import { AppError } from '../core/errors/app-error'
 
 const MAX_CREDITS = 18
 
@@ -19,7 +19,7 @@ export class EnrollmentService {
 
   // ─── Enroll student in courses ───────────────────────────────────────────
 
-  async enroll(studentId: number, semesterId: number, courseIds: number[]): Promise<Enrollment> {
+  async enroll(studentId: string, semesterId: string, courseIds: string[]): Promise<Enrollment> {
 
     // 1. Validate student exists and is ACTIVE
     const student = await this.studentRepo.findOne({ where: { id: studentId } })
@@ -85,7 +85,7 @@ export class EnrollmentService {
     const enrollment = this.enrollmentRepo.create({
       student: { id: studentId },
       semester: { id: semesterId },
-      status: 'PENDING',
+      status: EnrollmentStatus.PENDING,
       total_credits: totalCredits,
     })
     const savedEnrollment = await this.enrollmentRepo.save(enrollment)
@@ -104,7 +104,7 @@ export class EnrollmentService {
 
   // ─── Approve enrollment ───────────────────────────────────────────────────
 
-  async approve(enrollmentId: number): Promise<Enrollment> {
+  async approve(enrollmentId: string): Promise<Enrollment> {
     const enrollment = await this.enrollmentRepo.findOne({
       where: { id: enrollmentId },
       relations: ['enrollmentCourses', 'enrollmentCourses.course'],
@@ -125,13 +125,13 @@ export class EnrollmentService {
       }
     }
 
-    enrollment.status = 'APPROVED'
+    enrollment.status = EnrollmentStatus.APPROVED
     return this.enrollmentRepo.save(enrollment)
   }
 
   // ─── Cancel enrollment ────────────────────────────────────────────────────
 
-  async cancel(enrollmentId: number, studentId: number): Promise<Enrollment> {
+  async cancel(enrollmentId: string, studentId: string): Promise<Enrollment> {
     const enrollment = await this.enrollmentRepo.findOne({
       where: { id: enrollmentId, student: { id: studentId } },
     })
@@ -140,13 +140,13 @@ export class EnrollmentService {
       throw new AppError('Cannot cancel an already approved enrollment', 400)
     }
 
-    enrollment.status = 'CANCELLED'
+    enrollment.status = EnrollmentStatus.CANCELLED
     return this.enrollmentRepo.save(enrollment)
   }
 
   // ─── Get student's enrolled courses ──────────────────────────────────────
 
-  async getMyCourses(studentId: number, semesterId: number): Promise<Enrollment | null> {
+  async getMyCourses(studentId: string, semesterId: string): Promise<Enrollment | null> {
     return this.enrollmentRepo.findOne({
       where: { student: { id: studentId }, semester: { id: semesterId } },
       relations: [

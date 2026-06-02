@@ -3,11 +3,16 @@ import {
   Response,
   NextFunction
 } from "express";
+import { JwtPayload } from "jsonwebtoken";
+
+interface AuthRequest extends Request {
+  user?: JwtPayload | any;
+}
 
 export const authorizeRoles =
 (...roles: string[]) =>
 (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ) => {

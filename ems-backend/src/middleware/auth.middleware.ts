@@ -11,7 +11,7 @@ interface AuthRequest extends Request {
   user?: JwtPayload | any;
 }
 
-export const authMiddleware = (
+const authMiddleware = (
   req: AuthRequest,
   res: Response,
   next: NextFunction
@@ -50,3 +50,5 @@ export const authMiddleware = (
 
   }
 };
+
+export default authMiddleware;

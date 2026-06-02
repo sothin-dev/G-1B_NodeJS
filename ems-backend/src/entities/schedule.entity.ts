@@ -1,13 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { BaseEntity } from './baseEntity';
 import { Course } from './course.entity';
 
 @Entity('schedules')
-export class Schedule {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class Schedule extends BaseEntity {
   @Column({ name: 'course_id' })
-  courseId: number;
+  courseId: string;
 
   @Column()
   day: string; // Monday, Tuesday, etc.
