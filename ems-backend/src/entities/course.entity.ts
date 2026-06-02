@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+import { BaseEntity } from './baseEntity';
 import { Department } from './department.entity';
 import { Teacher } from './teacher.entity';
 import { Schedule } from './schedule.entity';
@@ -6,10 +7,7 @@ import { EnrollmentCourse } from './enrollment-course.entity';
 import { Grade } from './grade.entity';
 
 @Entity('courses')
-export class Course {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class Course extends BaseEntity {
   @Column()
   name: string;
 
@@ -20,10 +18,10 @@ export class Course {
   credit: number;
 
   @Column({ name: 'department_id', nullable: true })
-  departmentId: number;
+  departmentId: string;
 
   @Column({ name: 'teacher_id', nullable: true })
-  teacherId: number;
+  teacherId: string;
 
   @Column()
   capacity: number;

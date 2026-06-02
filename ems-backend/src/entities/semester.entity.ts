@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany } from 'typeorm';
+import { BaseEntity } from './baseEntity';
 import { Enrollment } from './enrollment.entity';
 
 export enum SemesterStatus {
@@ -8,9 +9,7 @@ export enum SemesterStatus {
 }
 
 @Entity('semesters')
-export class Semester {
-  @PrimaryGeneratedColumn()
-  id: number;
+export class Semester extends BaseEntity {
 
   @Column()
   name: string; // e.g., "Fall 2025"

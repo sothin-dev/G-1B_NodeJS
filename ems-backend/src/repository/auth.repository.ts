@@ -11,14 +11,20 @@ class AuthRepository extends BaseRepository<User> {
 
   async findByEmail(email: string) {
     return this.repo.findOne({
-      where: { email },
+      where: {
+        email,
+      },
+      relations: {
+        role: true,
+      },
     });
   }
 
-  async updateRefreshToken(userId: number, token: string) {
-    await this.repo.update(userId, {
-      refresh_token: token,
-    });
+  async updateRefreshToken(id: string, token: string) {
+    return this.repo.update(
+      { id },
+      { refresh_token: token }, 
+    );
   }
 }
 

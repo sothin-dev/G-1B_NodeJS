@@ -5,10 +5,10 @@ import { Course } from './course.entity';
 @Entity('enrollment_courses')
 export class EnrollmentCourse {
   @PrimaryColumn()
-  enrollment_id: number;
+  enrollment_id: string;
 
   @PrimaryColumn()
-  course_id: number;
+  course_id: string;
 
   @ManyToOne(() => Enrollment, enrollment => enrollment.enrollmentCourses)
   @JoinColumn({ name: 'enrollment_id' })

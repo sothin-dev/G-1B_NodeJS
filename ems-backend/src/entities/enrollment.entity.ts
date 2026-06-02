@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+import { BaseEntity } from './baseEntity';
 import { Student } from './student.entity';
 import { Semester } from './semester.entity';
 import { EnrollmentCourse } from './enrollment-course.entity';
@@ -11,15 +12,12 @@ export enum EnrollmentStatus {
 }
 
 @Entity('enrollments')
-export class Enrollment {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class Enrollment extends BaseEntity {
   @Column({ name: 'student_id' })
-  studentId: number;
+  studentId: string;
 
   @Column({ name: 'semester_id' })
-  semesterId: number;
+  semesterId: string;
 
   @Column({ type: 'enum', enum: EnrollmentStatus, default: EnrollmentStatus.PENDING })
   status: EnrollmentStatus;
