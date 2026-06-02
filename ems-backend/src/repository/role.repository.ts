@@ -25,6 +25,8 @@ class RoleRepository extends BaseRepository<Role> {
       },
     });
   }
+
+  
 }
 
 export default new RoleRepository();

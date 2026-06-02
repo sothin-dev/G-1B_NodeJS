@@ -33,32 +33,59 @@ class RolePermissionController {
   /**
    * Get role with permission
    */
-  getRolePermission = async (req: Request, res: Response, next: NextFunction) => {
+  getRolePermission = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
     try {
-        const role = await rolePermissionService.getRoleWithPermissions(req.params.id);
+      const role = await rolePermissionService.getRoleWithPermissions(
+        req.params.id,
+      );
 
-        return successResponse(
-            res,
-            "Role and its permission",
-            role
-        )
-    } catch(error) {
-        next(error)
+      return successResponse(res, "Role and its permission", role);
+    } catch (error) {
+      next(error);
     }
-  }
+  };
 
   /**
    * update role
    */
   updateRole = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = await rolePermissionService.updateRole(req.params.id, req.body);
+      const role = await rolePermissionService.updateRole(
+        req.params.id,
+        req.body,
+      );
 
       return successResponse(res, "Role updated successfully", role);
     } catch (error) {
       next(error);
     }
-  }
+  };
+
+  /**
+   * assign permissions to a role
+   */
+  assignPermissions = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const { id } = req.params;
+
+      const result = await rolePermissionService.assignPermissions(
+        id,
+        req.body.permissionIds,
+      );
+
+      return successResponse(res, "Permissions assigned successfully", result);
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 
 export default new RolePermissionController();

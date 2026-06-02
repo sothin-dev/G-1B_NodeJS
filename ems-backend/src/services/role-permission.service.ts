@@ -2,6 +2,8 @@ import "dotenv/config";
 import { AppError } from "../core/errors/app-error";
 
 import roleRepository from "../repository/role.repository";
+import rolePermissionRepository from "../repository/role-permission.repository";
+import permissionRepository from "../repository/permission.repository";
 
 import { CreateRole } from "../dto/createRole.dto";
 import { UpdateRole } from "../dto/updateRole.dto";
@@ -50,15 +52,40 @@ class RoleService {
   async updateRole(roleId: string, data: UpdateRole) {
     const existingRole = await roleRepository.findById(roleId);
 
-    if( !existingRole ) {
+    if (!existingRole) {
       throw new AppError("This role is not found", 404);
     }
 
-    const role = await roleRepository.update(roleId, {name: data.name})
+    const role = await roleRepository.update(roleId, { name: data.name });
 
-    return role
+    return role;
+  }
+
+  /**
+   * Asign one or more permission to a role by role id
+   */
+  async assignPermissions(roleId: string, permissionIds: string[]) {
+    const role = await roleRepository.findById(roleId);
+
+    if (!role) {
+      throw new AppError("Role not found", 404);
+    }
+
+    const existing = await rolePermissionRepository.findByRoleId(roleId);
+
+    const existingIds = existing.map((p) => p.permission_id);
+
+    const newPermissions = permissionIds.filter(
+      (id) => !existingIds.includes(id),
+    );
+
+    const payload = newPermissions.map((permissionId) => ({
+      role_id: roleId,
+      permission_id: permissionId,
+    }));
+
+    return await rolePermissionRepository.createMany(payload);
   }
 }
 
-
-export default new RoleService;
+export default new RoleService();
