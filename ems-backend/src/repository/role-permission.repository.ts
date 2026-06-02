@@ -5,40 +5,36 @@ import { RolePermission } from "../entities/role_permission.entity";
 
 import { BaseRepository } from "./base.repository";
 
-class RolePermissionRepository
-  extends BaseRepository<RolePermission> {
-
+class RolePermissionRepository extends BaseRepository<RolePermission> {
   constructor() {
-    super(
-      AppDataSource.getRepository(
-        RolePermission
-      )
-    );
+    super(AppDataSource.getRepository(RolePermission));
   }
 
-  async findByRoleId(
-    roleId: string
-  ) {
+  async findByRoleId(roleId: string) {
     return this.repo.find({
       where: {
-        role_id: roleId
-      }
+        role_id: roleId,
+      },
     });
   }
 
-  async createMany(
-    data: DeepPartial<RolePermission>[]
-  ) {
+  async createMany(data: DeepPartial<RolePermission>[]) {
     return this.repo.save(data);
   }
 
-  async deleteRolePermission(
-    roleId: string,
-    permissionId: string
-  ) {
+  async deleteRolePermission(roleId: string, permissionId: string) {
     return this.repo.delete({
       role_id: roleId,
-      permission_id: permissionId
+      permission_id: permissionId,
+    });
+  }
+
+  async findOneByRoleAndPermission(roleId: string, permissionId: string) {
+    return this.repo.findOne({
+      where: {
+        role_id: roleId,
+        permission_id: permissionId,
+      },
     });
   }
 }

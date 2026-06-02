@@ -86,6 +86,25 @@ class RolePermissionController {
       next(error);
     }
   };
+
+  /**
+   * Remove permission from role
+   */
+  removePermission = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const { id, permId } = req.params;
+
+      await rolePermissionService.removePermission(id, permId);
+
+      return successResponse(res, "Permission removed successfully");
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 
 export default new RolePermissionController();

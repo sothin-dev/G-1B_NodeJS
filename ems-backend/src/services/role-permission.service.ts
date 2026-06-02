@@ -86,6 +86,24 @@ class RoleService {
 
     return await rolePermissionRepository.createMany(payload);
   }
+
+  /**
+   * Remove permission from role
+   */
+  async removePermission(roleId: string, permissionId: string) {
+    const existing = await rolePermissionRepository.findOneByRoleAndPermission(
+      roleId,
+      permissionId,
+    );
+
+    if (!existing) {
+      throw new AppError("Permission not assigned to role", 404);
+    }
+
+    await rolePermissionRepository.deleteRolePermission(roleId, permissionId);
+
+    return true;
+  }
 }
 
 export default new RoleService();

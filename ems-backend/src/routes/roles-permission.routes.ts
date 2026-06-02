@@ -12,28 +12,28 @@ const router = Router();
 router.get(
   "/",
   authMiddleware,
-  authorizeRoles("SUPER_ADMIN", "ADMIN"),
+  authorizeRoles(Roles.SUPER_ADMIN, Roles.ADMIN),
   rolePermissionController.getAllRoles,
 );
 
 router.post(
   "/",
   authMiddleware,
-  authorizeRoles("SUPER_ADMIN", "ADMIN"),
+  authorizeRoles(Roles.SUPER_ADMIN, Roles.ADMIN),
   rolePermissionController.createRole,
 );
 
 router.get(
   "/:id",
   authMiddleware,
-  authorizeRoles("SUPER_ADMIN", "ADMIN"),
+  authorizeRoles(Roles.SUPER_ADMIN, Roles.ADMIN),
   rolePermissionController.getRolePermission,
 );
 
 router.patch(
   "/:id",
   authMiddleware,
-  authorizeRoles("SUPER_ADMIN", "ADMIN"),
+  authorizeRoles(Roles.SUPER_ADMIN, Roles.ADMIN),
   rolePermissionController.updateRole,
 );
 
@@ -42,6 +42,16 @@ router.post(
   authMiddleware,
   authorizeRoles(Roles.SUPER_ADMIN, Roles.ADMIN),
   rolePermissionController.assignPermissions
+);
+
+router.delete(
+  "/:id/permissions/:permId",
+  authMiddleware,
+  authorizeRoles(
+    Roles.SUPER_ADMIN, Roles.ADMIN
+  ),
+  rolePermissionController
+    .removePermission
 );
 
 export default router;

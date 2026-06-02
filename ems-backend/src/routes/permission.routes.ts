@@ -17,7 +17,7 @@ const router = Router();
 router.get(
   "/",
   authMiddleware,
-  authorizeRoles(Roles.SUPER_ADMIN),
+  authorizeRoles(Roles.SUPER_ADMIN, Roles.ADMIN),
   permissionController.getPermissions
 );
 
