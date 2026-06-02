@@ -10,24 +10,38 @@ import { Roles } from "../constants/roles";
 const router = Router();
 
 router.get(
-    '/',
-    authMiddleware,
-    authorizeRoles(Roles.ADMIN, Roles.SUPER_ADMIN, Roles.TEACHER),
-    studentController.getAllStudents
-)
+  "/",
+  authMiddleware,
+  authorizeRoles(Roles.ADMIN, Roles.SUPER_ADMIN, Roles.TEACHER),
+  studentController.getAllStudents,
+);
 
 router.post(
-    '/',
-    authMiddleware,
-    authorizeRoles(Roles.ADMIN, Roles.SUPER_ADMIN),
-    studentController.createStudent
-)
+  "/",
+  authMiddleware,
+  authorizeRoles(Roles.ADMIN, Roles.SUPER_ADMIN),
+  studentController.createStudent,
+);
 
 router.get(
-    '/:id',
-    authMiddleware,
-    authorizeRoles(Roles.ADMIN, Roles.SUPER_ADMIN, Roles.STUDENT),
-    studentController.showStudent
-)
+  "/:id",
+  authMiddleware,
+  authorizeRoles(Roles.ADMIN, Roles.SUPER_ADMIN, Roles.STUDENT),
+  studentController.showStudent,
+);
+
+router.get(
+  "/:id/enrollments",
+  authMiddleware,
+  authorizeRoles(Roles.ADMIN, Roles.SUPER_ADMIN, Roles.STUDENT),
+  studentController.getStudentEnrollmentHistory,
+);
+
+router.get(
+  "/:id/grades",
+  authMiddleware,
+  authorizeRoles(Roles.ADMIN, Roles.SUPER_ADMIN, Roles.STUDENT),
+  studentController.getStudentGrades,
+);
 
 export default router;
