@@ -27,6 +27,10 @@ __decorate([
     __metadata("design:type", String)
 ], Department.prototype, "code", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", String)
+], Department.prototype, "description", void 0);
+__decorate([
     (0, typeorm_1.OneToMany)(() => student_entity_1.Student, student => student.department),
     __metadata("design:type", Array)
 ], Department.prototype, "students", void 0);

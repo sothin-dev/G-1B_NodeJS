@@ -41,29 +41,40 @@ async function seed() {
     await database_1.AppDataSource.initialize();
     const roleRepo = database_1.AppDataSource.getRepository(role_entity_1.Role);
     const userRepo = database_1.AppDataSource.getRepository(user_entity_1.User);
-    // Create roles
-    const superAdminRole = roleRepo.create({
-        name: "SUPER_ADMIN"
+    // Ensure required roles exist
+    const requiredRoleNames = [
+        "SUPER_ADMIN",
+        "ADMIN",
+        "TEACHER",
+        "STUDENT",
+    ];
+    const existingRoles = await roleRepo.find({
+        where: requiredRoleNames.map((name) => ({ name })),
     });
-    const studentRole = roleRepo.create({
-        name: "STUDENT"
+    const existingRoleNames = new Set(existingRoles.map((role) => role.name));
+    const missingRoles = requiredRoleNames
+        .filter((name) => !existingRoleNames.has(name))
+        .map((name) => roleRepo.create({ name }));
+    if (missingRoles.length > 0) {
+        await roleRepo.save(missingRoles);
+    }
+    const superAdminRole = existingRoles.find((role) => role.name === "SUPER_ADMIN") ||
+        missingRoles.find((role) => role.name === "SUPER_ADMIN");
+    // Create admin user if it does not already exist
+    const existingAdmin = await userRepo.findOne({
+        where: { email: "admin@university.edu" },
     });
-    const teacherRole = roleRepo.create({
-        name: "TEACHER"
-    });
-    await roleRepo.save([
-        superAdminRole,
-        studentRole,
-        teacherRole
-    ]);
-    // Create admin user
-    const admin = userRepo.create({
-        email: "admin@university.edu",
-        password: await bcrypt.hash("Admin123!", 10),
-        role: superAdminRole,
-        is_active: true
-    });
-    await userRepo.save(admin);
+    if (!existingAdmin && superAdminRole) {
+        const admin = userRepo.create({
+            first_name: "Admin",
+            last_name: "User",
+            email: "admin@university.edu",
+            password: await bcrypt.hash("Admin123!", 10),
+            role: superAdminRole,
+            is_active: true,
+        });
+        await userRepo.save(admin);
+    }
     console.log("Seed completed");
     process.exit(0);
 }

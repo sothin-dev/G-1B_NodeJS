@@ -25,7 +25,7 @@ exports.AppDataSource = new typeorm_1.DataSource({
     username: process.env.DB_USERNAME,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    synchronize: true,
+    synchronize: process.env.DB_SYNCHRONIZE === "true",
     logging: false,
     entities: [
         role_entity_1.Role,
@@ -43,7 +43,7 @@ exports.AppDataSource = new typeorm_1.DataSource({
         enrollment_course_entity_1.EnrollmentCourse,
         grade_entity_1.Grade,
     ],
-    migrations: ["src/database/migrations/*.ts"],
+    migrations: [`${__dirname}/../database/migrations/*{.ts,.js}`],
     connectorPackage: 'mysql2',
     extra: {
         authPlugins: {
