@@ -15,8 +15,9 @@ import { LoginDto } from "../dto/login.dto";
 import { Roles } from "../constants/roles";
 
 import { AppError } from "../core/errors/app-error";
-import studentRepository from "../repository/student.repository";
-import { StudentStatus } from "../entities/student.entity";
+import { Student, StudentStatus } from "../entities/student.entity";
+import { AppDataSource } from "../config/database";
+import { User } from "../entities/user.entity";
 
 class AuthService {
   async register(data: RegisterDto) {
@@ -26,51 +27,50 @@ class AuthService {
       throw new AppError("Email already exists", 409);
     }
 
-    const hashedPassword = await hashPassword(data.password);
-
-    // DEFAULT ROLE = STUDENT
-    let role = await roleRepository.findByName(Roles.STUDENT);
+    const role = await roleRepository.findByName(Roles.STUDENT);
 
     if (!role) {
-      role = await roleRepository.create({
-        name: Roles.STUDENT,
-      });
+      throw new AppError("Student role not configured", 500);
     }
 
-    const user = await authRepository.create({
-      first_name: data.firstName,
-      last_name: data.lastName,
-      email: data.email,
-      password: hashedPassword,
-      roleId: role.id,
-    });
+    const hashedPassword = await hashPassword(data.password);
+
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
     try {
-      await studentRepository.create({
-        user: { id: user.id } as any,
+      const user = await queryRunner.manager.save(User, {
+        first_name: data.firstName,
+        last_name: data.lastName,
+        email: data.email,
+        password: hashedPassword,
+        roleId: role.id,
+      });
+
+      await queryRunner.manager.save(Student, {
+        user: { id: user.id },
         status: StudentStatus.ACTIVE,
         enrollment_year: new Date().getFullYear(),
       });
-    } catch (err) {
-      console.error("STUDENT CREATE ERROR:", err);
+
+      await queryRunner.commitTransaction();
+
+      return {
+        id: user.id,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        email: user.email,
+        role: role.name,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    const payload = {
-      id: user.id,
-      email: user.email,
-      role: role.name,
-    };
-
-    // const accessToken = generateAccessToken(payload);
-
-    return {
-      firstName: user.first_name,
-      lastName: user.last_name,
-      id: user.id,
-      email: user.email,
-      role: role.name,
-      // Token: accessToken,
-    };
   }
 
   async login(data: LoginDto) {
