@@ -9,6 +9,7 @@ import courseRouter from './course.routes'
 import scheduleRouter from './schedule.routes'
 import semesterRouter from './semester.routes'
 import enrollmentRouter from './enrollment.routes'
+import gradeRouter from './grade.routes'
 
 const router = Router()
 
@@ -22,5 +23,6 @@ router.use('/courses', courseRouter)
 router.use('/schedules', scheduleRouter)
 router.use('/semesters', semesterRouter)
 router.use('/enrollments', enrollmentRouter)
+router.use('/grades', gradeRouter)
 
 export default router
