@@ -1,203 +1,284 @@
-// src/services/enrollment.service.ts
-import { AppDataSource } from '../config/database'
-import { Enrollment } from '../models/Enrollment'
-import { EnrollmentCourse } from '../models/EnrollmentCourse'
-import { Course } from '../models/Course'
-import { Schedule } from '../models/Schedule'
-import { Semester } from '../models/Semester'
-import { Student } from '../models/Student'
-import { AppError } from '../middleware/error.middleware'
+﻿import { EnrollmentRepository } from '../repository/enrollment.repository'
+import { CourseRepository } from '../repository/course.repository'
+import { SemesterRepository } from '../repository/semester.repository'
+import { Enrollment, EnrollmentStatus } from '../entities/enrollment.entity'
+import { Course } from '../entities/course.entity'
+import { SemesterStatus } from '../entities/semester.entity'
 
-const MAX_CREDITS = 18
+type EnrollmentFilters = {
+  student_id?: number
+  semester_id?: number
+  status?: string
+  page: number
+  limit: number
+}
+
+type ValidateResult = {
+  valid: boolean
+  requested_credits: number
+  current_credits: number
+  total_credits: number
+  errors: string[]
+}
 
 export class EnrollmentService {
-  private enrollmentRepo = AppDataSource.getRepository(Enrollment)
-  private enrollmentCourseRepo = AppDataSource.getRepository(EnrollmentCourse)
-  private courseRepo = AppDataSource.getRepository(Course)
-  private semesterRepo = AppDataSource.getRepository(Semester)
-  private studentRepo = AppDataSource.getRepository(Student)
+  private enrollmentRepo: EnrollmentRepository
+  private courseRepo: CourseRepository
+  private semesterRepo: SemesterRepository
+  private MAX_CREDITS = 18
 
-  // ─── Enroll student in courses ───────────────────────────────────────────
+  constructor() {
+    this.enrollmentRepo = new EnrollmentRepository()
+    this.courseRepo = new CourseRepository()
+    this.semesterRepo = new SemesterRepository()
+  }
 
-  async enroll(studentId: number, semesterId: number, courseIds: number[]): Promise<Enrollment> {
+  async enrollInCourses(studentId: number, semesterId: number, courseIds: number[]): Promise<Enrollment> {
+    const semester = await this.semesterRepo.findById(semesterId)
+    if (!semester) throw new Error('Semester not found')
+    if (semester.status !== SemesterStatus.ACTIVE) throw new Error('Enrollment is only allowed during active semesters')
 
-    // 1. Validate student exists and is ACTIVE
-    const student = await this.studentRepo.findOne({ where: { id: studentId } })
-    if (!student) throw new AppError('Student not found', 404)
-    if (student.status !== 'ACTIVE') {
-      throw new AppError(`Cannot enroll — student status is ${student.status}`, 403)
+    const uniqueCourseIds = [...new Set(courseIds)]
+    if (uniqueCourseIds.length !== courseIds.length) throw new Error('Duplicate courses detected in request')
+
+    const courses = await this.courseRepo.findByIds(uniqueCourseIds)
+    if (courses.length !== uniqueCourseIds.length) throw new Error('One or more courses not found')
+
+    for (const course of courses) {
+      const existing = await this.enrollmentRepo.findExisting(studentId, semesterId, course.id)
+      if (existing) throw new Error(`Already enrolled in course: ${course.name}`)
     }
 
-    // 2. Validate semester is ACTIVE
-    const semester = await this.semesterRepo.findOne({ where: { id: semesterId } })
-    if (!semester) throw new AppError('Semester not found', 404)
-    if (semester.status !== 'ACTIVE') {
-      throw new AppError(`Cannot enroll — semester is ${semester.status}`, 403)
-    }
+    const requestedCredits = courses.reduce((sum: number, c: Course) => sum + c.credit, 0)
+    const currentCredits = await this.enrollmentRepo.getStudentCreditsForSemester(studentId, semesterId)
 
-    // 3. Load requested courses with their schedules
-    const courses = await this.courseRepo.find({
-      where: courseIds.map((id) => ({ id })),
-      relations: ['schedules'],
-    })
-
-    if (courses.length !== courseIds.length) {
-      throw new AppError('One or more courses not found', 404)
-    }
-
-    // 4. Validate credit limit
-    const totalCredits = courses.reduce((sum, c) => sum + c.credit, 0)
-    if (totalCredits > MAX_CREDITS) {
-      throw new AppError(
-        `Total credits (${totalCredits}) exceeds the maximum allowed (${MAX_CREDITS})`,
-        400
+    if (currentCredits + requestedCredits > this.MAX_CREDITS) {
+      throw new Error(
+        `Credit limit exceeded. Maximum ${this.MAX_CREDITS} credits. ` +
+        `You have ${currentCredits} credits, trying to add ${requestedCredits} credits.`
       )
     }
 
-    // 5. Check for duplicate enrollment in same semester
-    const existing = await this.enrollmentRepo.findOne({
-      where: { student: { id: studentId }, semester: { id: semesterId } },
-      relations: ['enrollmentCourses', 'enrollmentCourses.course'],
-    })
-    if (existing) {
-      const alreadyEnrolled = existing.enrollmentCourses.map((ec) => ec.course.id)
-      const duplicate = courseIds.find((id) => alreadyEnrolled.includes(id))
-      if (duplicate) {
-        throw new AppError(`Already enrolled in course ID ${duplicate} this semester`, 409)
-      }
-    }
+    await this.checkScheduleConflicts(studentId, semesterId, courses)
 
-    // 6. Validate schedule conflicts (new courses vs each other)
-    this.validateScheduleConflicts(courses)
-
-    // 7. If student already has an enrollment this semester, also check
-    //    new courses against already-enrolled course schedules
-    if (existing) {
-      const existingCourses = existing.enrollmentCourses.map((ec) => ec.course)
-      const existingWithSchedules = await this.courseRepo.find({
-        where: existingCourses.map((c) => ({ id: c.id })),
-        relations: ['schedules'],
-      })
-      this.validateScheduleConflicts([...existingWithSchedules, ...courses])
-    }
-
-    // 8. Create enrollment record
-    const enrollment = this.enrollmentRepo.create({
-      student: { id: studentId },
-      semester: { id: semesterId },
-      status: 'PENDING',
-      total_credits: totalCredits,
-    })
-    const savedEnrollment = await this.enrollmentRepo.save(enrollment)
-
-    // 9. Create enrollment_courses join records
-    const enrollmentCourses = courses.map((course) =>
-      this.enrollmentCourseRepo.create({
-        enrollment: savedEnrollment,
-        course,
-      })
+    return await this.enrollmentRepo.createWithCourses(
+      {
+        studentId,
+        semesterId,
+        status: EnrollmentStatus.PENDING,
+        total_credits: requestedCredits,
+      },
+      uniqueCourseIds
     )
-    await this.enrollmentCourseRepo.save(enrollmentCourses)
-
-    return savedEnrollment
   }
 
-  // ─── Approve enrollment ───────────────────────────────────────────────────
+  async cancelEnrollment(enrollmentId: number, userId: number, role: string): Promise<void> {
+    const enrollment = await this.enrollmentRepo.findById(enrollmentId)
+    if (!enrollment) throw new Error('Enrollment not found')
 
-  async approve(enrollmentId: number): Promise<Enrollment> {
-    const enrollment = await this.enrollmentRepo.findOne({
-      where: { id: enrollmentId },
-      relations: ['enrollmentCourses', 'enrollmentCourses.course'],
-    })
-    if (!enrollment) throw new AppError('Enrollment not found', 404)
-    if (enrollment.status !== 'PENDING') {
-      throw new AppError(`Cannot approve — enrollment is already ${enrollment.status}`, 400)
+    const normalizedRole = String(role).toUpperCase()
+    if (normalizedRole === 'STUDENT' || normalizedRole === 'ST') {
+      if (enrollment.studentId !== userId) throw new Error('You can only cancel your own enrollments')
+      if (enrollment.status === EnrollmentStatus.REJECTED) throw new Error('Cannot cancel a rejected enrollment')
     }
 
-    // Check course capacities
-    for (const ec of enrollment.enrollmentCourses) {
-      const course = ec.course
-      const enrolledCount = await this.enrollmentCourseRepo.count({
-        where: { course: { id: course.id } },
-      })
-      if (enrolledCount >= course.capacity) {
-        throw new AppError(`Course "${course.name}" is full (capacity: ${course.capacity})`, 409)
-      }
+    if (enrollment.status === EnrollmentStatus.CANCELLED) throw new Error('Enrollment is already cancelled')
+    await this.enrollmentRepo.updateStatus(enrollmentId, EnrollmentStatus.CANCELLED)
+  }
+
+  async approveEnrollment(enrollmentId: number, adminId: number): Promise<Enrollment> {
+    const enrollment = await this.enrollmentRepo.findById(enrollmentId)
+    if (!enrollment) throw new Error('Enrollment not found')
+    if (enrollment.status !== EnrollmentStatus.PENDING) {
+      throw new Error(`Cannot approve enrollment with status: ${enrollment.status}`)
     }
 
-    enrollment.status = 'APPROVED'
-    return this.enrollmentRepo.save(enrollment)
-  }
-
-  // ─── Cancel enrollment ────────────────────────────────────────────────────
-
-  async cancel(enrollmentId: number, studentId: number): Promise<Enrollment> {
-    const enrollment = await this.enrollmentRepo.findOne({
-      where: { id: enrollmentId, student: { id: studentId } },
-    })
-    if (!enrollment) throw new AppError('Enrollment not found', 404)
-    if (enrollment.status === 'APPROVED') {
-      throw new AppError('Cannot cancel an already approved enrollment', 400)
+    const capacityViolations = await this.checkEnrollmentCapacity(enrollment)
+    if (capacityViolations.length > 0) {
+      throw new Error(capacityViolations.join('; '))
     }
 
-    enrollment.status = 'CANCELLED'
-    return this.enrollmentRepo.save(enrollment)
+    await this.enrollmentRepo.updateStatusWithHistory(enrollmentId, EnrollmentStatus.APPROVED, adminId)
+    return (await this.enrollmentRepo.findById(enrollmentId))!
   }
 
-  // ─── Get student's enrolled courses ──────────────────────────────────────
+  async rejectEnrollment(enrollmentId: number, adminId: number, reason: string): Promise<Enrollment> {
+    const enrollment = await this.enrollmentRepo.findById(enrollmentId)
+    if (!enrollment) throw new Error('Enrollment not found')
+    if (enrollment.status !== EnrollmentStatus.PENDING) {
+      throw new Error(`Cannot reject enrollment with status: ${enrollment.status}`)
+    }
 
-  async getMyCourses(studentId: number, semesterId: number): Promise<Enrollment | null> {
-    return this.enrollmentRepo.findOne({
-      where: { student: { id: studentId }, semester: { id: semesterId } },
-      relations: [
-        'enrollmentCourses',
-        'enrollmentCourses.course',
-        'enrollmentCourses.course.schedules',
-      ],
-    })
+    await this.enrollmentRepo.updateStatusWithHistory(enrollmentId, EnrollmentStatus.REJECTED, adminId, reason)
+    return (await this.enrollmentRepo.findById(enrollmentId))!
   }
 
-  // ─── Schedule conflict validator ──────────────────────────────────────────
+  async listEnrollments(filters: EnrollmentFilters): Promise<{ enrollments: Enrollment[]; total: number }> {
+    return await this.enrollmentRepo.findAll(filters)
+  }
 
-  private validateScheduleConflicts(courses: Course[]): void {
-    const schedules: Array<{ schedule: Schedule; courseName: string }> = []
+  async getEnrollmentById(id: number, userId: number, role: string): Promise<Enrollment> {
+    const enrollment = await this.enrollmentRepo.findById(id)
+    if (!enrollment) throw new Error('Enrollment not found')
+
+    const normalizedRole = String(role).toUpperCase()
+    if (normalizedRole === 'STUDENT' || normalizedRole === 'ST') {
+      if (enrollment.studentId !== userId) throw new Error('You can only view your own enrollment')
+    }
+
+    return enrollment
+  }
+
+  async getMyCourses(studentId: number, semesterId?: number): Promise<Enrollment[]> {
+    let semester = undefined
+    if (semesterId) {
+      semester = await this.semesterRepo.findById(semesterId)
+      if (!semester) throw new Error('Semester not found')
+    } else {
+      semester = await this.semesterRepo.findActive()
+      if (!semester) throw new Error('No active semester found')
+    }
+
+    return await this.enrollmentRepo.findMyCourses(studentId, semester.id)
+  }
+
+  async validateEnrollment(studentId: number, semesterId: number, courseIds: number[]): Promise<ValidateResult> {
+    const semester = await this.semesterRepo.findById(semesterId)
+    if (!semester) throw new Error('Semester not found')
+
+    const uniqueCourseIds = [...new Set(courseIds)]
+    const errors: string[] = []
+
+    if (semester.status !== SemesterStatus.ACTIVE) {
+      errors.push('Enrollment is only allowed during active semesters')
+    }
+
+    if (uniqueCourseIds.length !== courseIds.length) {
+      errors.push('Duplicate courses detected in request')
+    }
+
+    const courses = await this.courseRepo.findByIds(uniqueCourseIds)
+    if (courses.length !== uniqueCourseIds.length) {
+      errors.push('One or more courses not found')
+    }
 
     for (const course of courses) {
-      for (const schedule of course.schedules) {
-        schedules.push({ schedule, courseName: course.name })
+      const existing = await this.enrollmentRepo.findExisting(studentId, semesterId, course.id)
+      if (existing) errors.push(`Already enrolled in course: ${course.name}`)
+    }
+
+    const requestedCredits = courses.reduce((sum: number, c: Course) => sum + c.credit, 0)
+    const currentCredits = await this.enrollmentRepo.getStudentCreditsForSemester(studentId, semesterId)
+    const totalCredits = currentCredits + requestedCredits
+
+    if (totalCredits > this.MAX_CREDITS) {
+      errors.push(
+        `Credit limit exceeded. Maximum ${this.MAX_CREDITS} credits. You have ${currentCredits} credits, trying to add ${requestedCredits} credits.`
+      )
+    }
+
+    const conflicts = await this.getScheduleConflictMessages(studentId, semesterId, courses)
+    if (conflicts.length) {
+      errors.push(...conflicts)
+    }
+
+    return {
+      valid: errors.length === 0,
+      requested_credits: requestedCredits,
+      current_credits: currentCredits,
+      total_credits: totalCredits,
+      errors,
+    }
+  }
+
+  async getEnrollmentCourses(enrollmentId: number) {
+    const enrollment = await this.enrollmentRepo.findById(enrollmentId)
+    if (!enrollment) throw new Error('Enrollment not found')
+    return enrollment.enrollmentCourses?.map(ec => ec.course) ?? []
+  }
+
+  async bulkApproveEnrollments(enrollmentIds: number[], adminId: number): Promise<Enrollment[]> {
+    if (!enrollmentIds || enrollmentIds.length === 0) {
+      throw new Error('enrollment_ids must be a non-empty array')
+    }
+
+    const enrollments = await this.enrollmentRepo.findByIds(enrollmentIds)
+    if (enrollments.length !== enrollmentIds.length) {
+      throw new Error('One or more enrollment records were not found')
+    }
+
+    for (const enrollment of enrollments) {
+      if (enrollment.status !== EnrollmentStatus.PENDING) {
+        throw new Error(`Cannot approve enrollment with status: ${enrollment.status}`)
+      }
+      const capacityViolations = await this.checkEnrollmentCapacity(enrollment)
+      if (capacityViolations.length > 0) {
+        throw new Error(capacityViolations.join('; '))
       }
     }
+
+    await this.enrollmentRepo.bulkApprove(enrollmentIds)
+    return await this.enrollmentRepo.findByIds(enrollmentIds)
+  }
+
+  async getEnrollmentHistory(
+    studentId: number,
+    filters: { semester_id?: number; status?: string; page: number; limit: number }
+  ): Promise<{ enrollments: Enrollment[]; total: number }> {
+    return await this.enrollmentRepo.getHistoryWithFilters(studentId, filters)
+  }
+
+  private async getScheduleConflictMessages(studentId: number, semesterId: number, newCourses: Course[]): Promise<string[]> {
+    const existingEnrollments = await this.enrollmentRepo.findStudentApprovedEnrollments(studentId, semesterId)
+    const existingCourseIds = existingEnrollments.flatMap(e =>
+      e.enrollmentCourses?.map(ec => ec.course_id) ?? []
+    )
+    const existingCourses = existingCourseIds.length ? await this.courseRepo.findByIds(existingCourseIds) : []
+
+    const allCourseIds = [...existingCourses, ...newCourses].map(c => c.id)
+    const schedules = await this.courseRepo.getSchedulesForCourses(allCourseIds)
+    const conflicts: string[] = []
 
     for (let i = 0; i < schedules.length; i++) {
       for (let j = i + 1; j < schedules.length; j++) {
-        const a = schedules[i]
-        const b = schedules[j]
-
-        if (a.schedule.day === b.schedule.day && this.timesOverlap(a.schedule, b.schedule)) {
-          throw new AppError(
-            `Schedule conflict: "${a.courseName}" and "${b.courseName}" ` +
-            `overlap on ${a.schedule.day} ` +
-            `(${a.schedule.start_time}–${a.schedule.end_time} vs ` +
-            `${b.schedule.start_time}–${b.schedule.end_time})`,
-            409
+        const s1 = schedules[i]
+        const s2 = schedules[j]
+        if (s1.day === s2.day && this.isTimeOverlap(s1.start_time, s1.end_time, s2.start_time, s2.end_time)) {
+          conflicts.push(
+            `Schedule conflict: ${s1.course_name} (${s1.start_time}-${s1.end_time}) overlaps with ${s2.course_name} (${s2.start_time}-${s2.end_time}) on ${s1.day}`
           )
         }
       }
     }
+
+    return conflicts
   }
 
-  private timesOverlap(a: Schedule, b: Schedule): boolean {
-    const toMinutes = (time: string): number => {
+  private async checkScheduleConflicts(studentId: number, semesterId: number, newCourses: Course[]): Promise<void> {
+    const conflicts = await this.getScheduleConflictMessages(studentId, semesterId, newCourses)
+    if (conflicts.length > 0) {
+      throw new Error(conflicts.join('; '))
+    }
+  }
+
+  private async checkEnrollmentCapacity(enrollment: Enrollment): Promise<string[]> {
+    const errors: string[] = []
+    for (const ec of enrollment.enrollmentCourses ?? []) {
+      const course = ec.course
+      if (!course) continue
+      const count = await this.enrollmentRepo.countApprovedForCourse(course.id)
+      if (count >= course.capacity) {
+        errors.push(`Course ${course.name} has reached capacity (${course.capacity})`)
+      }
+    }
+    return errors
+  }
+
+  private isTimeOverlap(start1: string, end1: string, start2: string, end2: string): boolean {
+    const toMinutes = (time: string) => {
       const [h, m] = time.split(':').map(Number)
       return h * 60 + m
     }
-
-    const aStart = toMinutes(a.start_time)
-    const aEnd = toMinutes(a.end_time)
-    const bStart = toMinutes(b.start_time)
-    const bEnd = toMinutes(b.end_time)
-
-    // Overlap if one starts before the other ends
-    return aStart < bEnd && bStart < aEnd
+    return toMinutes(start1) < toMinutes(end2) && toMinutes(end1) > toMinutes(start2)
   }
 }

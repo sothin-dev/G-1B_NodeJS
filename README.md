@@ -44,7 +44,7 @@ A full-stack enrollment management system built with:
    PORT=5000
    JWT_SECRET=your_super_secret_key_here
    JWT_EXPIRES_IN=7d
-   NODE_ENV=development
+   NODE_ENV=development/
    ```
 
 4. **Create the database in MySQL:**
@@ -60,7 +60,7 @@ A full-stack enrollment management system built with:
 
 6. **Start the development server:**
    ```bash
-   npm run dev
+   c
    ```
    Server runs at `http://localhost:5000`
 

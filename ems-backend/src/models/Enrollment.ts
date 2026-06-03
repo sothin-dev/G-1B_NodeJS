@@ -20,6 +20,9 @@ export class Enrollment {
   @Column({ name: 'total_credits', default: 0 })
   total_credits: number
 
+  @Column({ name: 'rejection_reason', nullable: true, type: 'text' })
+  rejection_reason: string | null
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date
 

@@ -7,7 +7,7 @@ import { JwtPayload } from "jsonwebtoken";
 
 import jwt from "jsonwebtoken";
 
-interface AuthRequest extends Request {
+export interface AuthRequest extends Request {
   user?: JwtPayload | any;
 }
 

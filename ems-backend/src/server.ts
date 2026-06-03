@@ -10,6 +10,7 @@ const app = express()
 
 app.use(cors())
 app.use(express.json())
+app.get('/', (_req, res) => res.json({ message: 'EMS API is running', version: 'v1' }))
 app.use('/api/v1', router)
 app.use(errorMiddleware)
 
