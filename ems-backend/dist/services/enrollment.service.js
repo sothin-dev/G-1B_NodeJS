@@ -18,6 +18,31 @@ class EnrollmentService {
         this.semesterRepo = database_1.AppDataSource.getRepository(semester_entity_1.Semester);
         this.studentRepo = database_1.AppDataSource.getRepository(student_entity_1.Student);
     }
+    async listEnrollments(filters = {}) {
+        const query = this.enrollmentRepo.createQueryBuilder('enrollment')
+            .leftJoinAndSelect('enrollment.student', 'student')
+            .leftJoinAndSelect('student.user', 'user')
+            .leftJoinAndSelect('enrollment.semester', 'semester')
+            .leftJoinAndSelect('enrollment.enrollmentCourses', 'enrollmentCourses')
+            .leftJoinAndSelect('enrollmentCourses.course', 'course')
+            .orderBy('enrollment.created_at', 'DESC');
+        if (filters.studentId)
+            query.andWhere('enrollment.studentId = :studentId', { studentId: filters.studentId });
+        if (filters.semesterId)
+            query.andWhere('enrollment.semesterId = :semesterId', { semesterId: filters.semesterId });
+        if (filters.status)
+            query.andWhere('enrollment.status = :status', { status: filters.status });
+        return query.getMany();
+    }
+    async getEnrollment(enrollmentId) {
+        const enrollment = await this.enrollmentRepo.findOne({
+            where: { id: enrollmentId },
+            relations: ['student', 'student.user', 'semester', 'enrollmentCourses', 'enrollmentCourses.course'],
+        });
+        if (!enrollment)
+            throw new app_error_1.AppError('Enrollment not found', 404);
+        return enrollment;
+    }
     // ─── Enroll student in courses ───────────────────────────────────────────
     async enroll(studentId, semesterId, courseIds) {
         // 1. Validate student exists and is ACTIVE
@@ -111,28 +136,82 @@ class EnrollmentService {
         enrollment.status = enrollment_entity_1.EnrollmentStatus.APPROVED;
         return this.enrollmentRepo.save(enrollment);
     }
+    async reject(enrollmentId, reason) {
+        const enrollment = await this.getEnrollment(enrollmentId);
+        if (enrollment.status !== enrollment_entity_1.EnrollmentStatus.PENDING) {
+            throw new app_error_1.AppError(`Cannot reject — enrollment is already ${enrollment.status}`, 400);
+        }
+        enrollment.status = enrollment_entity_1.EnrollmentStatus.REJECTED;
+        if (reason) {
+            ;
+            enrollment.rejectionReason = reason;
+        }
+        return this.enrollmentRepo.save(enrollment);
+    }
     // ─── Cancel enrollment ────────────────────────────────────────────────────
     async cancel(enrollmentId, studentId) {
         const enrollment = await this.enrollmentRepo.findOne({
-            where: { id: enrollmentId, student: { id: studentId } },
+            where: studentId ? { id: enrollmentId, student: { id: studentId } } : { id: enrollmentId },
+            relations: ['student'],
         });
         if (!enrollment)
             throw new app_error_1.AppError('Enrollment not found', 404);
-        if (enrollment.status === 'APPROVED') {
-            throw new app_error_1.AppError('Cannot cancel an already approved enrollment', 400);
+        if (enrollment.status === enrollment_entity_1.EnrollmentStatus.CANCELLED) {
+            throw new app_error_1.AppError('Enrollment is already cancelled', 400);
         }
         enrollment.status = enrollment_entity_1.EnrollmentStatus.CANCELLED;
         return this.enrollmentRepo.save(enrollment);
     }
+    async bulkApprove(enrollmentIds) {
+        const results = [];
+        for (const id of enrollmentIds) {
+            results.push(await this.approve(id));
+        }
+        return results;
+    }
+    async validateSelection(studentId, semesterId, courseIds) {
+        const student = await this.studentRepo.findOne({ where: { id: studentId } });
+        if (!student)
+            throw new app_error_1.AppError('Student not found', 404);
+        const semester = await this.semesterRepo.findOne({ where: { id: semesterId } });
+        if (!semester)
+            throw new app_error_1.AppError('Semester not found', 404);
+        const courses = await this.courseRepo.find({
+            where: courseIds.map((id) => ({ id })),
+            relations: ['schedules'],
+        });
+        if (courses.length !== courseIds.length) {
+            throw new app_error_1.AppError('One or more courses not found', 404);
+        }
+        const totalCredits = courses.reduce((sum, course) => sum + course.credit, 0);
+        if (totalCredits > MAX_CREDITS) {
+            throw new app_error_1.AppError(`Total credits (${totalCredits}) exceeds the maximum allowed (${MAX_CREDITS})`, 400);
+        }
+        this.validateScheduleConflicts(courses);
+        return {
+            valid: true,
+            totalCredits,
+            courseCount: courses.length,
+            semester,
+            student,
+        };
+    }
+    async getEnrollmentCourses(enrollmentId) {
+        const enrollment = await this.getEnrollment(enrollmentId);
+        return enrollment.enrollmentCourses?.map((item) => item.course) ?? [];
+    }
     // ─── Get student's enrolled courses ──────────────────────────────────────
     async getMyCourses(studentId, semesterId) {
         return this.enrollmentRepo.findOne({
-            where: { student: { id: studentId }, semester: { id: semesterId } },
+            where: semesterId
+                ? { student: { id: studentId }, semester: { id: semesterId } }
+                : { student: { id: studentId } },
             relations: [
                 'enrollmentCourses',
                 'enrollmentCourses.course',
                 'enrollmentCourses.course.schedules',
             ],
+            order: { created_at: 'DESC' },
         });
     }
     // ─── Schedule conflict validator ──────────────────────────────────────────
