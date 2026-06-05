@@ -4,9 +4,7 @@ import { Student } from "../entities/student.entity";
 
 class StudentRepository extends BaseRepository<Student> {
   constructor() {
-    super(
-      AppDataSource.getRepository(Student)
-    );
+    super(AppDataSource.getRepository(Student));
   }
 
   async findById(id: string) {

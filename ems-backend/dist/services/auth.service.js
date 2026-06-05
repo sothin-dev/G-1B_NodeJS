@@ -10,53 +10,52 @@ const hash_password_1 = require("../utils/hash-password");
 const generate_token_1 = require("../utils/generate-token");
 const roles_1 = require("../constants/roles");
 const app_error_1 = require("../core/errors/app-error");
-const student_repository_1 = __importDefault(require("../repository/student.repository"));
 const student_entity_1 = require("../entities/student.entity");
+const database_1 = require("../config/database");
+const user_entity_1 = require("../entities/user.entity");
 class AuthService {
     async register(data) {
         const existingUser = await auth_repository_1.default.findByEmail(data.email);
         if (existingUser) {
             throw new app_error_1.AppError("Email already exists", 409);
         }
-        const hashedPassword = await (0, hash_password_1.hashPassword)(data.password);
-        // DEFAULT ROLE = STUDENT
-        let role = await role_repository_1.default.findByName(roles_1.Roles.STUDENT);
+        const role = await role_repository_1.default.findByName(roles_1.Roles.STUDENT);
         if (!role) {
-            role = await role_repository_1.default.create({
-                name: roles_1.Roles.STUDENT,
-            });
+            throw new app_error_1.AppError("Student role not configured", 500);
         }
-        const user = await auth_repository_1.default.create({
-            first_name: data.firstName,
-            last_name: data.lastName,
-            email: data.email,
-            password: hashedPassword,
-            roleId: role.id,
-        });
+        const hashedPassword = await (0, hash_password_1.hashPassword)(data.password);
+        const queryRunner = database_1.AppDataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
         try {
-            await student_repository_1.default.create({
+            const user = await queryRunner.manager.save(user_entity_1.User, {
+                first_name: data.firstName,
+                last_name: data.lastName,
+                email: data.email,
+                password: hashedPassword,
+                roleId: role.id,
+            });
+            await queryRunner.manager.save(student_entity_1.Student, {
                 user: { id: user.id },
                 status: student_entity_1.StudentStatus.ACTIVE,
                 enrollment_year: new Date().getFullYear(),
             });
+            await queryRunner.commitTransaction();
+            return {
+                id: user.id,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                email: user.email,
+                role: role.name,
+            };
         }
-        catch (err) {
-            console.error("STUDENT CREATE ERROR:", err);
+        catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw error;
         }
-        const payload = {
-            id: user.id,
-            email: user.email,
-            role: role.name,
-        };
-        // const accessToken = generateAccessToken(payload);
-        return {
-            firstName: user.first_name,
-            lastName: user.last_name,
-            id: user.id,
-            email: user.email,
-            role: role.name,
-            // Token: accessToken,
-        };
+        finally {
+            await queryRunner.release();
+        }
     }
     async login(data) {
         const user = await auth_repository_1.default.findByEmail(data.email);
