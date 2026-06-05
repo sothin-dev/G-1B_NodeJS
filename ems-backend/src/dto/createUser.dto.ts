@@ -4,6 +4,7 @@ import {
   IsUUID,
   IsBoolean,
   MinLength,
+  IsOptional,
 } from "class-validator";
 
 export class CreateUserDto {
@@ -25,4 +26,12 @@ export class CreateUserDto {
   @IsString()
   @MinLength(6)
   password: string;
+
+  @IsOptional()
+  @IsUUID()
+  departmentId?: string;
+
+  @IsOptional()
+  @IsString()
+  studentNumber?: string;
 }

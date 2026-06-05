@@ -1,11 +1,19 @@
 ﻿import { Request, Response, NextFunction } from "express";
 import { EnrollmentService } from "../services/enrollment.service";
-import { successResponse } from "../utils/api-response";
+import { errorResponse, successResponse } from "../utils/api-response";
+
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id?: string;
+    role?: string;
+    [key: string]: any;
+  };
+}
 
 const enrollmentService = new EnrollmentService();
 
 class EnrollmentController {
-  async listEnrollments(req: Request, res: Response, next: NextFunction) {
+  async listEnrollments(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const result = await enrollmentService.listEnrollments({
         studentId: req.query.studentId as string | undefined,
@@ -18,9 +26,16 @@ class EnrollmentController {
     }
   }
 
-  async createEnrollment(req: Request, res: Response, next: NextFunction) {
+  async createEnrollment(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const studentId = (req.user?.id && req.user.role === 'STUDENT') ? req.user.id : req.body.studentId;
+      const studentId = (req.user?.id && req.user.role === 'STUDENT')
+        ? req.user.id
+        : (req.body.studentId as string | undefined);
+
+      if (!studentId) {
+        return errorResponse(res, "Student ID is required", 400);
+      }
+
       const semesterId = req.body.semesterId;
       const courseIds = Array.isArray(req.body.courseIds)
         ? req.body.courseIds
@@ -35,7 +50,7 @@ class EnrollmentController {
     }
   }
 
-  async getEnrollment(req: Request, res: Response, next: NextFunction) {
+  async getEnrollment(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const result = await enrollmentService.getEnrollment(req.params.id);
       return successResponse(res, "Enrollment details", result);
@@ -44,7 +59,7 @@ class EnrollmentController {
     }
   }
 
-  async approveEnrollment(req: Request, res: Response, next: NextFunction) {
+  async approveEnrollment(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const result = await enrollmentService.approve(req.params.id);
       return successResponse(res, "Enrollment approved", result);
@@ -53,7 +68,7 @@ class EnrollmentController {
     }
   }
 
-  async rejectEnrollment(req: Request, res: Response, next: NextFunction) {
+  async rejectEnrollment(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const result = await enrollmentService.reject(req.params.id, req.body?.reason);
       return successResponse(res, "Enrollment rejected", result);
@@ -62,9 +77,16 @@ class EnrollmentController {
     }
   }
 
-  async cancelEnrollment(req: Request, res: Response, next: NextFunction) {
+  async cancelEnrollment(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const studentId = req.user?.role === 'STUDENT' ? req.user.id : req.body.studentId;
+      const studentId = req.user?.role === 'STUDENT'
+        ? req.user.id
+        : (req.body.studentId as string | undefined);
+
+      if (!studentId) {
+        return errorResponse(res, "Student ID is required", 400);
+      }
+
       const result = await enrollmentService.cancel(req.params.id, studentId);
       return successResponse(res, "Enrollment cancelled", result);
     } catch (error) {
@@ -72,18 +94,31 @@ class EnrollmentController {
     }
   }
 
-  async getMyCourses(req: Request, res: Response, next: NextFunction) {
+  async getMyCourses(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const result = await enrollmentService.getMyCourses(req.user.id, req.query.semesterId as string | undefined);
+      const studentId = req.user?.id;
+
+      if (!studentId) {
+        return errorResponse(res, "Unauthorized", 401);
+      }
+
+      const result = await enrollmentService.getMyCourses(studentId, req.query.semesterId as string | undefined);
       return successResponse(res, "Student enrolled courses", result);
     } catch (error) {
       next(error);
     }
   }
 
-  async validateSelection(req: Request, res: Response, next: NextFunction) {
+  async validateSelection(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const studentId = req.user?.role === 'STUDENT' ? req.user.id : req.body.studentId;
+      const studentId = req.user?.role === 'STUDENT'
+        ? req.user.id
+        : (req.body.studentId as string | undefined);
+
+      if (!studentId) {
+        return errorResponse(res, "Student ID is required", 400);
+      }
+
       const semesterId = req.body.semesterId;
       const courseIds = Array.isArray(req.body.courseIds) ? req.body.courseIds : [];
 
@@ -94,7 +129,7 @@ class EnrollmentController {
     }
   }
 
-  async getEnrollmentCourses(req: Request, res: Response, next: NextFunction) {
+  async getEnrollmentCourses(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const result = await enrollmentService.getEnrollmentCourses(req.params.id);
       return successResponse(res, "Enrollment courses", result);
@@ -103,7 +138,7 @@ class EnrollmentController {
     }
   }
 
-  async bulkApprove(req: Request, res: Response, next: NextFunction) {
+  async bulkApprove(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const result = await enrollmentService.bulkApprove(req.body.enrollmentIds ?? []);
       return successResponse(res, "Enrollments approved", result);
