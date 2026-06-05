@@ -1,0 +1,22 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const enrollment_controller_1 = __importDefault(require("../controllers/enrollment.controller"));
+const auth_middleware_1 = __importDefault(require("../middleware/auth.middleware"));
+const role_middleware_1 = require("../middleware/role.middleware");
+const roles_1 = require("../constants/roles");
+const router = (0, express_1.Router)();
+router.get('/', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN), enrollment_controller_1.default.listEnrollments);
+router.post('/', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.STUDENT), enrollment_controller_1.default.createEnrollment);
+router.get('/my-courses', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.STUDENT), enrollment_controller_1.default.getMyCourses);
+router.post('/validate', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.STUDENT), enrollment_controller_1.default.validateSelection);
+router.get('/:id', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN, roles_1.Roles.STUDENT), enrollment_controller_1.default.getEnrollment);
+router.patch('/:id/approve', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN), enrollment_controller_1.default.approveEnrollment);
+router.patch('/:id/reject', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN), enrollment_controller_1.default.rejectEnrollment);
+router.patch('/:id/cancel', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN, roles_1.Roles.STUDENT), enrollment_controller_1.default.cancelEnrollment);
+router.get('/:id/courses', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN), enrollment_controller_1.default.getEnrollmentCourses);
+router.post('/bulk-approve', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN), enrollment_controller_1.default.bulkApprove);
+exports.default = router;
