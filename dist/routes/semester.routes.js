@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const semester_controller_1 = __importDefault(require("../controllers/semester.controller"));
+const auth_middleware_1 = __importDefault(require("../middleware/auth.middleware"));
+const role_middleware_1 = require("../middleware/role.middleware");
+const roles_1 = require("../constants/roles");
+const router = (0, express_1.Router)();
+router.get("/active", auth_middleware_1.default, semester_controller_1.default.getActiveSemester);
+router.get("/", auth_middleware_1.default, semester_controller_1.default.listSemesters);
+router.post("/", auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN), semester_controller_1.default.createSemester);
+router.get("/:id", auth_middleware_1.default, semester_controller_1.default.getSemester);
+router.patch("/:id/open", auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN), semester_controller_1.default.openEnrollment);
+router.patch("/:id/close", auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN), semester_controller_1.default.closeEnrollment);
+router.patch("/:id", auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN), semester_controller_1.default.updateSemester);
+router.delete("/:id", auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN), semester_controller_1.default.deleteSemester);
+exports.default = router;

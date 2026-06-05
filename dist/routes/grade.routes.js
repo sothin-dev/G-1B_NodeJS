@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const grade_controller_1 = __importDefault(require("../controllers/grade.controller"));
+const auth_middleware_1 = __importDefault(require("../middleware/auth.middleware"));
+const role_middleware_1 = require("../middleware/role.middleware");
+const roles_1 = require("../constants/roles");
+const router = (0, express_1.Router)();
+router.get('/', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN, roles_1.Roles.TEACHER), grade_controller_1.default.listGrades);
+router.post('/', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.TEACHER), grade_controller_1.default.createGrade);
+router.get('/:id', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN, roles_1.Roles.TEACHER, roles_1.Roles.STUDENT), grade_controller_1.default.getGrade);
+router.patch('/:id', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.TEACHER), grade_controller_1.default.updateGrade);
+router.delete('/:id', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN), grade_controller_1.default.deleteGrade);
+router.patch('/:id/publish', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.TEACHER), grade_controller_1.default.publishGrade);
+router.patch('/bulk-upload', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.TEACHER), grade_controller_1.default.bulkUpload);
+router.get('/course/:courseId', auth_middleware_1.default, (0, role_middleware_1.authorizeRoles)(roles_1.Roles.SUPER_ADMIN, roles_1.Roles.ADMIN, roles_1.Roles.TEACHER), grade_controller_1.default.getGradesByCourse);
+exports.default = router;
