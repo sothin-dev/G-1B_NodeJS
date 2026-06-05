@@ -20,7 +20,12 @@ class EnrollmentController {
     }
     async createEnrollment(req, res, next) {
         try {
-            const studentId = (req.user?.id && req.user.role === 'STUDENT') ? req.user.id : req.body.studentId;
+            const studentId = (req.user?.id && req.user.role === 'STUDENT')
+                ? req.user.id
+                : req.body.studentId;
+            if (!studentId) {
+                return (0, api_response_1.errorResponse)(res, "Student ID is required", 400);
+            }
             const semesterId = req.body.semesterId;
             const courseIds = Array.isArray(req.body.courseIds)
                 ? req.body.courseIds
@@ -63,7 +68,12 @@ class EnrollmentController {
     }
     async cancelEnrollment(req, res, next) {
         try {
-            const studentId = req.user?.role === 'STUDENT' ? req.user.id : req.body.studentId;
+            const studentId = req.user?.role === 'STUDENT'
+                ? req.user.id
+                : req.body.studentId;
+            if (!studentId) {
+                return (0, api_response_1.errorResponse)(res, "Student ID is required", 400);
+            }
             const result = await enrollmentService.cancel(req.params.id, studentId);
             return (0, api_response_1.successResponse)(res, "Enrollment cancelled", result);
         }
@@ -73,7 +83,11 @@ class EnrollmentController {
     }
     async getMyCourses(req, res, next) {
         try {
-            const result = await enrollmentService.getMyCourses(req.user.id, req.query.semesterId);
+            const studentId = req.user?.id;
+            if (!studentId) {
+                return (0, api_response_1.errorResponse)(res, "Unauthorized", 401);
+            }
+            const result = await enrollmentService.getMyCourses(studentId, req.query.semesterId);
             return (0, api_response_1.successResponse)(res, "Student enrolled courses", result);
         }
         catch (error) {
@@ -82,7 +96,12 @@ class EnrollmentController {
     }
     async validateSelection(req, res, next) {
         try {
-            const studentId = req.user?.role === 'STUDENT' ? req.user.id : req.body.studentId;
+            const studentId = req.user?.role === 'STUDENT'
+                ? req.user.id
+                : req.body.studentId;
+            if (!studentId) {
+                return (0, api_response_1.errorResponse)(res, "Student ID is required", 400);
+            }
             const semesterId = req.body.semesterId;
             const courseIds = Array.isArray(req.body.courseIds) ? req.body.courseIds : [];
             const result = await enrollmentService.validateSelection(studentId, semesterId, courseIds);
