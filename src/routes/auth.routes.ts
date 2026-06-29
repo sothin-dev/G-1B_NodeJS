@@ -18,6 +18,12 @@ router.post(
   authController.login
 );
 
+router.get(
+  "/me",
+  authMiddleware,
+  authController.getMe
+);
+
 router.post(
   "/logout",
   authMiddleware,

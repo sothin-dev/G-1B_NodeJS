@@ -25,6 +25,16 @@ class AuthController {
     }
   }
 
+  async getMe(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await authService.getCurrentUser((req as any).user.id);
+
+      return successResponse(res, "Current user retrieved", result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async logout(req: Request, res: Response, next: NextFunction) {
     try {
       await authService.logout((req as any).user.id);

@@ -109,6 +109,32 @@ class AuthService {
     };
   }
 
+  async getCurrentUser(userId: string) {
+    const user = await authRepository.findByIdWithRole(userId);
+
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
+
+    // Extract flat list of permissions from role
+    const permissions =
+      user.role?.rolePermissions?.map((rp) => ({
+        id: rp.permission.id,
+        name: rp.permission.name,
+        module: rp.permission.module,
+      })) || [];
+
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      role: user.role?.name || null,
+      isActive: user.is_active,
+      permissions,
+    };
+  }
+
   async logout(userId: string) {
     const user = await authRepository.findById(userId);
 

@@ -20,6 +20,19 @@ class AuthRepository extends BaseRepository<User> {
     });
   }
 
+  async findByIdWithRole(id: string) {
+    return this.repo.findOne({
+      where: { id },
+      relations: {
+        role: {
+          rolePermissions: {
+            permission: true,
+          },
+        },
+      },
+    });
+  }
+
   async updateRefreshToken(id: string, token: string) {
     return this.repo.update(
       { id },
