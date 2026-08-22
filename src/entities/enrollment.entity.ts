@@ -22,8 +22,8 @@ export class Enrollment extends BaseEntity {
   @Column({ type: 'enum', enum: EnrollmentStatus, default: EnrollmentStatus.PENDING })
   status: EnrollmentStatus;
 
-  @Column()
-  total_credits: number;
+  @Column({ name: 'total_credits' })
+  totalCredits: number;
 
   @ManyToOne(() => Student, student => student.enrollments)
   @JoinColumn({ name: 'student_id' })

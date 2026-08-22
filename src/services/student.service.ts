@@ -13,18 +13,48 @@ import { User } from "../entities/user.entity";
 import { Grade } from "../entities/grade.entity";
 
 class StudentService {
-  /**
-   * Get all students
-   */
-  async getAllStudents() {
-    return AppDataSource.getRepository(Student).find({
-      relations: ["user", "department"],
-    });
+  async getAllStudents(params: { search?: string; departmentId?: string; status?: string; page?: number; limit?: number } = {}) {
+    const qb = AppDataSource.getRepository(Student)
+      .createQueryBuilder("student")
+      .leftJoinAndSelect("student.user", "user")
+      .leftJoinAndSelect("student.department", "department")
+      .orderBy("student.created_at", "DESC");
+
+    if (params.search) {
+      qb.andWhere(
+        "(student.studentNumber LIKE :search OR user.firstName LIKE :search OR user.lastName LIKE :search OR user.email LIKE :search)",
+        { search: `%${params.search}%` }
+      );
+    }
+
+    if (params.departmentId) {
+      qb.andWhere("student.departmentId = :departmentId", { departmentId: params.departmentId });
+    }
+
+    if (params.status) {
+      qb.andWhere("student.status = :status", { status: params.status });
+    }
+
+    if (params.page && params.limit) {
+      const page = Math.max(1, Number(params.page));
+      const limit = Math.max(1, Number(params.limit));
+      qb.skip((page - 1) * limit).take(limit);
+
+      const [items, totalItems] = await qb.getManyAndCount();
+      return {
+        items,
+        meta: {
+          totalItems,
+          currentPage: page,
+          itemsPerPage: limit,
+        },
+      };
+    }
+
+    const items = await qb.getMany();
+    return items;
   }
 
-  /**
-   * Create student
-   */
   async createStudent(data: CreateStudentDto) {
     const user = await AppDataSource.getRepository(User).findOne({
       where: { id: data.user_id },
@@ -49,17 +79,14 @@ class StudentService {
     }
 
     return studentRepository.create({
-      student_number: data.student_number,
+      studentNumber: data.student_number,
       user: { id: user.id },
       department: { id: department.id },
       status: StudentStatus.ACTIVE,
-      enrollment_year: new Date().getFullYear(),
+      enrollmentYear: new Date().getFullYear(),
     });
   }
 
-  /**
-   * Show detail student information
-   */
   async showStudent(studentId: string) {
     const student = await studentRepository.findById(studentId);
 
@@ -70,9 +97,6 @@ class StudentService {
     return student;
   }
 
-  /**
-   * Get student enrollment history
-   */
   async getStudentEnrollmentHistory(studentId: string) {
     const student = await studentRepository.findById(studentId);
 
@@ -83,9 +107,6 @@ class StudentService {
     return enrollmentRepository.getEnrollmentHistory(studentId);
   }
 
-  /**
-   * Get all grades for a student across semesters
-   */
   async getStudentGrades(studentId: string) {
     const student = await studentRepository.findById(studentId);
 

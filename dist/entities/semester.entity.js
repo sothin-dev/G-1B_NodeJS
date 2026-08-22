@@ -35,13 +35,13 @@ __decorate([
     __metadata("design:type", String)
 ], Semester.prototype, "status", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'date' }),
+    (0, typeorm_1.Column)({ name: 'start_date', type: 'date' }),
     __metadata("design:type", Date)
-], Semester.prototype, "start_date", void 0);
+], Semester.prototype, "startDate", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'date' }),
+    (0, typeorm_1.Column)({ name: 'end_date', type: 'date' }),
     __metadata("design:type", Date)
-], Semester.prototype, "end_date", void 0);
+], Semester.prototype, "endDate", void 0);
 __decorate([
     (0, typeorm_1.OneToMany)(() => enrollment_entity_1.Enrollment, enrollment => enrollment.semester),
     __metadata("design:type", Array)

@@ -11,10 +11,12 @@ class CourseController {
      */
     async listCourses(req, res, next) {
         try {
+            const search = req.query.search;
             const departmentId = req.query.departmentId;
             const teacherId = req.query.teacherId;
             const semesterId = req.query.semesterId;
             const courses = await course_service_1.default.listCourses({
+                search,
                 departmentId,
                 teacherId,
                 semesterId,

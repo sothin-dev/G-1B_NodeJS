@@ -5,6 +5,7 @@ const database_1 = require("../config/database");
 const grade_entity_1 = require("../entities/grade.entity");
 const course_entity_1 = require("../entities/course.entity");
 const student_entity_1 = require("../entities/student.entity");
+const enrollment_course_entity_1 = require("../entities/enrollment-course.entity");
 const app_error_1 = require("../core/errors/app-error");
 class GradeService {
     constructor() {
@@ -50,20 +51,32 @@ class GradeService {
         const grade = this.gradeRepo.create({
             student: { id: data.studentId },
             course: { id: data.courseId },
-            assignment_score: data.assignment_score ?? 0,
-            midterm_score: data.midterm_score ?? 0,
-            final_score: data.final_score ?? 0,
+            assignmentScore: data.assignmentScore ?? 0,
+            midtermScore: data.midtermScore ?? 0,
+            finalScore: data.finalScore ?? 0,
         });
         return this.saveGradeRecord(grade);
     }
     async updateGrade(gradeId, data) {
+        if (gradeId.startsWith('pending_')) {
+            const studentId = data.studentId || gradeId.replace('pending_', '');
+            if (studentId && data.courseId) {
+                return this.createGrade({
+                    studentId,
+                    courseId: data.courseId,
+                    assignmentScore: data.assignmentScore,
+                    midtermScore: data.midtermScore,
+                    finalScore: data.finalScore,
+                });
+            }
+        }
         const grade = await this.getGrade(gradeId);
-        if (data.assignment_score !== undefined)
-            grade.assignment_score = data.assignment_score;
-        if (data.midterm_score !== undefined)
-            grade.midterm_score = data.midterm_score;
-        if (data.final_score !== undefined)
-            grade.final_score = data.final_score;
+        if (data.assignmentScore !== undefined)
+            grade.assignmentScore = data.assignmentScore;
+        if (data.midtermScore !== undefined)
+            grade.midtermScore = data.midtermScore;
+        if (data.finalScore !== undefined)
+            grade.finalScore = data.finalScore;
         return this.saveGradeRecord(grade);
     }
     async deleteGrade(gradeId) {
@@ -73,7 +86,8 @@ class GradeService {
     }
     async publishGrade(gradeId) {
         const grade = await this.getGrade(gradeId);
-        grade.grade = this.calculateLetterGrade(grade.total_score ?? this.calculateTotal(grade));
+        grade.letterGrade = this.calculateLetterGrade(grade.totalScore ?? this.calculateTotal(grade));
+        grade.isPublished = true;
         return this.gradeRepo.save(grade);
     }
     async bulkUpload(courseId, records) {
@@ -86,18 +100,18 @@ class GradeService {
                 where: { student: { id: record.studentId }, course: { id: courseId } },
             });
             if (existing) {
-                existing.assignment_score = record.assignment_score ?? existing.assignment_score ?? 0;
-                existing.midterm_score = record.midterm_score ?? existing.midterm_score ?? 0;
-                existing.final_score = record.final_score ?? existing.final_score ?? 0;
+                existing.assignmentScore = record.assignmentScore ?? existing.assignmentScore ?? 0;
+                existing.midtermScore = record.midtermScore ?? existing.midtermScore ?? 0;
+                existing.finalScore = record.finalScore ?? existing.finalScore ?? 0;
                 results.push(await this.saveGradeRecord(existing));
             }
             else {
                 const created = this.gradeRepo.create({
                     student: { id: record.studentId },
                     course: { id: courseId },
-                    assignment_score: record.assignment_score ?? 0,
-                    midterm_score: record.midterm_score ?? 0,
-                    final_score: record.final_score ?? 0,
+                    assignmentScore: record.assignmentScore ?? 0,
+                    midtermScore: record.midtermScore ?? 0,
+                    finalScore: record.finalScore ?? 0,
                 });
                 results.push(await this.saveGradeRecord(created));
             }
@@ -105,20 +119,71 @@ class GradeService {
         return results;
     }
     async getGradesByCourse(courseId) {
-        return this.gradeRepo.find({
+        const course = await this.courseRepo.findOne({
+            where: { id: courseId },
+            relations: ['teacher', 'teacher.user'],
+        });
+        if (!course)
+            throw new app_error_1.AppError('Course not found', 404);
+        // Get all existing grades
+        const existingGrades = await this.gradeRepo.find({
             where: { course: { id: courseId } },
             relations: ['student', 'student.user', 'course'],
             order: { created_at: 'DESC' },
         });
+        const gradeMap = new Map();
+        for (const g of existingGrades) {
+            if (g.student?.id) {
+                gradeMap.set(g.student.id, g);
+            }
+        }
+        // Get all enrolled students via EnrollmentCourse & Enrollment
+        const enrollmentCourseRepo = database_1.AppDataSource.getRepository(enrollment_course_entity_1.EnrollmentCourse);
+        const enrollmentCourses = await enrollmentCourseRepo.find({
+            where: { course: { id: courseId } },
+            relations: ['enrollment', 'enrollment.student', 'enrollment.student.user'],
+        });
+        const studentMap = new Map();
+        for (const ec of enrollmentCourses) {
+            const student = ec.enrollment?.student;
+            if (student && student.id && !studentMap.has(student.id)) {
+                studentMap.set(student.id, student);
+            }
+        }
+        const results = [];
+        // Include existing grade records
+        for (const g of existingGrades) {
+            results.push(g);
+            if (g.student?.id) {
+                studentMap.delete(g.student.id);
+            }
+        }
+        // For any enrolled students without a grade record, create a transient/default slot
+        for (const [studentId, student] of studentMap.entries()) {
+            results.push({
+                id: `pending_${studentId}`,
+                studentId: studentId,
+                courseId: courseId,
+                assignmentScore: 0,
+                midtermScore: 0,
+                finalScore: 0,
+                totalScore: 0,
+                letterGrade: 'F',
+                isPublished: false,
+                student: student,
+                course: course,
+            });
+        }
+        return results;
     }
     async saveGradeRecord(grade) {
         const total = this.calculateTotal(grade);
-        grade.total_score = total;
-        grade.grade = this.calculateLetterGrade(total);
+        grade.totalScore = total;
+        grade.letterGrade = this.calculateLetterGrade(total);
         return this.gradeRepo.save(grade);
     }
     calculateTotal(grade) {
-        return (grade.assignment_score ?? 0) + (grade.midterm_score ?? 0) + (grade.final_score ?? 0);
+        return (grade.assignmentScore ?? 0) + (grade.midtermScore ?? 0) + (grade.finalScore ?? 0);
     }
     calculateLetterGrade(total) {
         if (total >= 90)

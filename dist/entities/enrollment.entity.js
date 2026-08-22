@@ -38,9 +38,9 @@ __decorate([
     __metadata("design:type", String)
 ], Enrollment.prototype, "status", void 0);
 __decorate([
-    (0, typeorm_1.Column)(),
+    (0, typeorm_1.Column)({ name: 'total_credits' }),
     __metadata("design:type", Number)
-], Enrollment.prototype, "total_credits", void 0);
+], Enrollment.prototype, "totalCredits", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => student_entity_1.Student, student => student.enrollments),
     (0, typeorm_1.JoinColumn)({ name: 'student_id' }),

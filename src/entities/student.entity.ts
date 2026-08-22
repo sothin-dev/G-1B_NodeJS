@@ -21,8 +21,8 @@ export enum StudentStatus {
 
 @Entity("students")
 export class Student extends BaseEntity {
-  @Column({ unique: true, nullable: true })
-  student_number: string;
+  @Column({ name: "student_number", unique: true, nullable: true })
+  studentNumber: string;
 
   @Column({ type: "uuid", name: "department_id", nullable: true })
   departmentId: string;
@@ -30,8 +30,11 @@ export class Student extends BaseEntity {
   @Column({ type: "enum", enum: StudentStatus, default: StudentStatus.ACTIVE })
   status: StudentStatus;
 
-  @Column({ type: "int" })
-  enrollment_year: number;
+  @Column({ name: "enrollment_year", type: "int" })
+  enrollmentYear: number;
+
+  @Column({ name: "user_id", unique: true, nullable: true })
+  userId: string;
 
   @ManyToOne(() => Department, (department) => department.students)
   @JoinColumn({ name: "department_id" })

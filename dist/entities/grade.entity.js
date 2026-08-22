@@ -26,25 +26,29 @@ __decorate([
     __metadata("design:type", String)
 ], Grade.prototype, "courseId", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'float', nullable: true }),
+    (0, typeorm_1.Column)({ name: 'assignment_score', type: 'float', nullable: true }),
     __metadata("design:type", Number)
-], Grade.prototype, "assignment_score", void 0);
+], Grade.prototype, "assignmentScore", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'float', nullable: true }),
+    (0, typeorm_1.Column)({ name: 'midterm_score', type: 'float', nullable: true }),
     __metadata("design:type", Number)
-], Grade.prototype, "midterm_score", void 0);
+], Grade.prototype, "midtermScore", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'float', nullable: true }),
+    (0, typeorm_1.Column)({ name: 'final_score', type: 'float', nullable: true }),
     __metadata("design:type", Number)
-], Grade.prototype, "final_score", void 0);
+], Grade.prototype, "finalScore", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'float', nullable: true }),
+    (0, typeorm_1.Column)({ name: 'total_score', type: 'float', nullable: true }),
     __metadata("design:type", Number)
-], Grade.prototype, "total_score", void 0);
+], Grade.prototype, "totalScore", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'char', length: 2, nullable: true }),
+    (0, typeorm_1.Column)({ name: 'grade', type: 'char', length: 2, nullable: true }),
     __metadata("design:type", String)
-], Grade.prototype, "grade", void 0);
+], Grade.prototype, "letterGrade", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'is_published', default: false }),
+    __metadata("design:type", Boolean)
+], Grade.prototype, "isPublished", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => student_entity_1.Student, student => student.grades),
     (0, typeorm_1.JoinColumn)({ name: 'student_id' }),

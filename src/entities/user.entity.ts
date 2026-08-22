@@ -16,12 +16,11 @@ import { Student } from "./student.entity";
 
 @Entity("users")
 export class User extends BaseEntity {
-  
-  @Column()
-  first_name: string;
+  @Column({ name: "first_name" })
+  firstName: string;
 
-  @Column()
-  last_name: string;
+  @Column({ name: "last_name" })
+  lastName: string;
 
   @Column({ unique: true })
   email: string;
@@ -32,14 +31,15 @@ export class User extends BaseEntity {
   @Column({ name: "role_id" })
   roleId: string;
 
-  @Column({ default: true })
-  is_active: boolean;
+  @Column({ name: "is_active", default: true })
+  isActive: boolean;
 
   @Column({
-    type: 'text',
+    name: "refresh_token",
+    type: "text",
     nullable: true,
   })
-  refresh_token: string;
+  refreshToken: string;
 
   @ManyToOne(() => Role, (role) => role.users)
   @JoinColumn({ name: "role_id" })

@@ -28,7 +28,7 @@ class ScheduleRepository extends BaseRepository<Schedule> {
       qb.andWhere("schedule.room = :room", { room: filters.room });
     }
 
-    qb.orderBy("schedule.day", "ASC").addOrderBy("schedule.start_time", "ASC");
+    qb.orderBy("schedule.day", "ASC").addOrderBy("schedule.startTime", "ASC");
 
     return qb.getMany();
   }
@@ -42,8 +42,8 @@ class ScheduleRepository extends BaseRepository<Schedule> {
 
   async checkConflict(data: {
     day: string;
-    start_time: string;
-    end_time: string;
+    startTime: string;
+    endTime: string;
     room: string;
     excludeScheduleId?: string;
   }) {
@@ -59,10 +59,10 @@ class ScheduleRepository extends BaseRepository<Schedule> {
     const conflicts = await qb.getMany();
 
     const hasConflict = conflicts.some((existing) => {
-      const existingStart = this.timeToMinutes(existing.start_time);
-      const existingEnd = this.timeToMinutes(existing.end_time);
-      const newStart = this.timeToMinutes(data.start_time);
-      const newEnd = this.timeToMinutes(data.end_time);
+      const existingStart = this.timeToMinutes(existing.startTime);
+      const existingEnd = this.timeToMinutes(existing.endTime);
+      const newStart = this.timeToMinutes(data.startTime);
+      const newEnd = this.timeToMinutes(data.endTime);
 
       return (
         (newStart < existingEnd && newEnd > existingStart)

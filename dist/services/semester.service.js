@@ -17,7 +17,7 @@ class SemesterService {
         if (year) {
             query.andWhere("semester.year = :year", { year });
         }
-        return query.orderBy("semester.year", "DESC").addOrderBy("semester.start_date", "DESC").getMany();
+        return query.orderBy("semester.year", "DESC").addOrderBy("semester.startDate", "DESC").getMany();
     }
     async createSemester(data) {
         if (new Date(data.start_date) > new Date(data.end_date)) {
@@ -30,8 +30,8 @@ class SemesterService {
         return semester_repository_1.default.create({
             name: data.name,
             year: data.year,
-            start_date: new Date(data.start_date),
-            end_date: new Date(data.end_date),
+            startDate: new Date(data.start_date),
+            endDate: new Date(data.end_date),
             status: semester_entity_1.SemesterStatus.UPCOMING,
         });
     }
@@ -51,8 +51,8 @@ class SemesterService {
         if (!semester) {
             throw new app_error_1.AppError("Semester not found", 404);
         }
-        const updatedStartDate = data.start_date ? new Date(data.start_date) : semester.start_date;
-        const updatedEndDate = data.end_date ? new Date(data.end_date) : semester.end_date;
+        const updatedStartDate = data.start_date ? new Date(data.start_date) : semester.startDate;
+        const updatedEndDate = data.end_date ? new Date(data.end_date) : semester.endDate;
         if (updatedStartDate > updatedEndDate) {
             throw new app_error_1.AppError("Semester start_date must be before end_date", 400);
         }
@@ -66,8 +66,8 @@ class SemesterService {
         }
         return semester_repository_1.default.update(id, {
             ...data,
-            start_date: data.start_date ? new Date(data.start_date) : undefined,
-            end_date: data.end_date ? new Date(data.end_date) : undefined,
+            startDate: data.start_date ? new Date(data.start_date) : undefined,
+            endDate: data.end_date ? new Date(data.end_date) : undefined,
         });
     }
     async deleteSemester(id) {

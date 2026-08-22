@@ -9,7 +9,7 @@ const router = Router();
 router.get(
   '/',
   authMiddleware,
-  authorizeRoles(Roles.SUPER_ADMIN, Roles.ADMIN, Roles.TEACHER),
+  authorizeRoles(Roles.SUPER_ADMIN, Roles.ADMIN, Roles.TEACHER, Roles.STUDENT),
   gradeController.listGrades,
 );
 
@@ -18,6 +18,13 @@ router.post(
   authMiddleware,
   authorizeRoles(Roles.TEACHER),
   gradeController.createGrade,
+);
+
+router.patch(
+  '/bulk-upload',
+  authMiddleware,
+  authorizeRoles(Roles.TEACHER),
+  gradeController.bulkUpload,
 );
 
 router.get(
@@ -46,13 +53,6 @@ router.patch(
   authMiddleware,
   authorizeRoles(Roles.TEACHER),
   gradeController.publishGrade,
-);
-
-router.patch(
-  '/bulk-upload',
-  authMiddleware,
-  authorizeRoles(Roles.TEACHER),
-  gradeController.bulkUpload,
 );
 
 router.get(

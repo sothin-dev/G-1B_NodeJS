@@ -29,8 +29,8 @@ class AuthService {
         await queryRunner.startTransaction();
         try {
             const user = await queryRunner.manager.save(user_entity_1.User, {
-                first_name: data.firstName,
-                last_name: data.lastName,
+                firstName: data.firstName,
+                lastName: data.lastName,
                 email: data.email,
                 password: hashedPassword,
                 roleId: role.id,
@@ -38,13 +38,13 @@ class AuthService {
             await queryRunner.manager.save(student_entity_1.Student, {
                 user: { id: user.id },
                 status: student_entity_1.StudentStatus.ACTIVE,
-                enrollment_year: new Date().getFullYear(),
+                enrollmentYear: new Date().getFullYear(),
             });
             await queryRunner.commitTransaction();
             return {
                 id: user.id,
-                firstName: user.first_name,
-                lastName: user.last_name,
+                firstName: user.firstName,
+                lastName: user.lastName,
                 email: user.email,
                 role: role.name,
             };
@@ -66,6 +66,9 @@ class AuthService {
         if (!isMatch) {
             throw new app_error_1.AppError("Invalid email or password", 401);
         }
+        if (!user.isActive) {
+            throw new app_error_1.AppError("Account is deactivated. Contact an administrator.", 403);
+        }
         const payload = {
             id: user.id,
             email: user.email,
@@ -84,12 +87,45 @@ class AuthService {
             refreshToken,
         };
     }
+    async getCurrentUser(userId) {
+        const user = await auth_repository_1.default.findByIdWithRole(userId);
+        if (!user) {
+            throw new app_error_1.AppError("User not found", 404);
+        }
+        // Extract flat list of permissions from role
+        const permissions = user.role?.rolePermissions?.map((rp) => ({
+            id: rp.permission.id,
+            name: rp.permission.name,
+            module: rp.permission.module,
+        })) || [];
+        return {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role?.name || null,
+            isActive: user.isActive,
+            student: user.student ? {
+                id: user.student.id,
+                studentNumber: user.student.studentNumber,
+                department: user.student.department?.name,
+                departmentId: user.student.departmentId,
+                status: user.student.status,
+            } : null,
+            teacher: user.teacher ? {
+                id: user.teacher.id,
+                department: user.teacher.department?.name,
+                departmentId: user.teacher.departmentId,
+            } : null,
+            permissions,
+        };
+    }
     async logout(userId) {
         const user = await auth_repository_1.default.findById(userId);
         if (!user) {
             throw new app_error_1.AppError("User not found", 404);
         }
-        if (!user.refresh_token || user.refresh_token.trim() === "") {
+        if (!user.refreshToken || user.refreshToken.trim() === "") {
             return "User is already logged out";
         }
         await auth_repository_1.default.updateRefreshToken(userId, "");

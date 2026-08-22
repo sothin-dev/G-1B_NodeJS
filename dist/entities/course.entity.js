@@ -31,7 +31,7 @@ __decorate([
 __decorate([
     (0, typeorm_1.Column)(),
     __metadata("design:type", Number)
-], Course.prototype, "credit", void 0);
+], Course.prototype, "credits", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'department_id', nullable: true }),
     __metadata("design:type", String)

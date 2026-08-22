@@ -11,20 +11,23 @@ export class Grade extends BaseEntity {
   @Column({ name: 'course_id' })
   courseId: string;
 
-  @Column({ type: 'float', nullable: true })
-  assignment_score: number;
+  @Column({ name: 'assignment_score', type: 'float', nullable: true })
+  assignmentScore: number;
 
-  @Column({ type: 'float', nullable: true })
-  midterm_score: number;
+  @Column({ name: 'midterm_score', type: 'float', nullable: true })
+  midtermScore: number;
 
-  @Column({ type: 'float', nullable: true })
-  final_score: number;
+  @Column({ name: 'final_score', type: 'float', nullable: true })
+  finalScore: number;
 
-  @Column({ type: 'float', nullable: true })
-  total_score: number;
+  @Column({ name: 'total_score', type: 'float', nullable: true })
+  totalScore: number;
 
-  @Column({ type: 'char', length: 2, nullable: true })
-  grade: string; // A, A-, B+, etc.
+  @Column({ name: 'grade', type: 'char', length: 2, nullable: true })
+  letterGrade: string;
+
+  @Column({ name: 'is_published', default: false })
+  isPublished: boolean;
 
   @ManyToOne(() => Student, student => student.grades)
   @JoinColumn({ name: 'student_id' })

@@ -12,22 +12,23 @@ const student_repository_1 = __importDefault(require("../repository/student.repo
 const role_repository_1 = __importDefault(require("../repository/role.repository"));
 const student_entity_1 = require("../entities/student.entity");
 class UserService {
-    async GetAllUser() {
-        const data = await user_repository_1.default.findAll();
-        return data;
+    async GetAllUser(params = {}) {
+        return await user_repository_1.default.searchUsers(params);
     }
     async createUser(data) {
         const existingUser = await user_repository_1.default.findByEmail(data.email);
         if (existingUser) {
             throw new app_error_1.AppError("Email already exists", 409);
         }
-        const hashedPassword = await (0, hash_password_1.hashPassword)(data.password);
+        const hashedPassword = await (0, hash_password_1.hashPassword)(data.password || "Password123!");
+        const firstName = data.firstName || data.email.split("@")[0];
+        const lastName = data.lastName || "";
         const user = await user_repository_1.default.create({
-            first_name: data.firstName,
-            last_name: data.lastName,
+            firstName,
+            lastName,
             password: hashedPassword,
             email: data.email,
-            is_active: data.isActive,
+            isActive: data.isActive !== undefined ? data.isActive : true,
             roleId: data.roleId,
         });
         // create profile based on role
@@ -44,26 +45,34 @@ class UserService {
         if (role.name === "STUDENT") {
             await student_repository_1.default.create({
                 user: { id: user.id },
+                userId: user.id,
                 departmentId: data.departmentId,
-                student_number: data.studentNumber,
+                studentNumber: data.studentNumber || `STU-${Date.now().toString().slice(-6)}`,
                 status: student_entity_1.StudentStatus.ACTIVE,
-                enrollment_year: new Date().getFullYear(),
+                enrollmentYear: new Date().getFullYear(),
             });
         }
-        return user;
+        return await user_repository_1.default.findById(user.id);
     }
     async UpdateUser(ID, data) {
         const user = await user_repository_1.default.findById(ID);
         if (!user) {
             throw new app_error_1.AppError("User not found", 404);
         }
-        const payload = {
-            first_name: data.firstName,
-            last_name: data.lastName,
-            email: data.email,
-            is_active: data.isActive,
-            roleId: data.roleId,
-        };
+        const payload = {};
+        if (data.firstName !== undefined)
+            payload.firstName = data.firstName;
+        if (data.lastName !== undefined)
+            payload.lastName = data.lastName;
+        if (data.email !== undefined)
+            payload.email = data.email;
+        if (data.isActive !== undefined)
+            payload.isActive = data.isActive;
+        if (data.roleId !== undefined)
+            payload.roleId = data.roleId;
+        if (data.password) {
+            payload.password = await (0, hash_password_1.hashPassword)(data.password);
+        }
         return await user_repository_1.default.update(ID, payload);
     }
     async deactivateUser(userId) {

@@ -12,47 +12,77 @@ import { User } from "../entities/user.entity";
 class DashboardService {
   async getAdminOverview() {
     const studentCount = await AppDataSource.getRepository(Student).count();
+    const teacherCount = await AppDataSource.getRepository(Teacher).count();
+    const courseCount = await AppDataSource.getRepository(Course).count();
+    const departmentCount = await AppDataSource.getRepository(Department).count();
     const enrollmentCount = await AppDataSource.getRepository(Enrollment).count();
+    const pendingEnrollmentsCount = await AppDataSource.getRepository(Enrollment).count({
+      where: { status: "PENDING" as any },
+    });
 
     const activeSemester = await AppDataSource.getRepository(Semester).findOne({
       where: { status: SemesterStatus.ACTIVE },
     });
 
-    const topCourses = await AppDataSource.getRepository(Course)
-      .createQueryBuilder("course")
-      .leftJoin("course.enrollmentCourses", "enrollmentCourse")
-      .leftJoin("enrollmentCourse.enrollment", "enrollment")
-      .leftJoin("enrollment.semester", "semester")
-      .where("semester.status = :status", { status: SemesterStatus.ACTIVE })
-      .select(["course.id", "course.name", "course.code", "COUNT(enrollmentCourse.id) AS enrollmentCount"])
-      .groupBy("course.id")
-      .orderBy("enrollmentCount", "DESC")
-      .limit(5)
-      .getRawMany();
+    let topCourses: any[] = [];
+    try {
+      topCourses = await AppDataSource.getRepository(Course)
+        .createQueryBuilder("course")
+        .leftJoin("course.enrollmentCourses", "enrollmentCourse")
+        .leftJoin("enrollmentCourse.enrollment", "enrollment")
+        .leftJoin("enrollment.semester", "semester")
+        .select([
+          "course.id AS id",
+          "course.name AS name",
+          "course.code AS code",
+          "course.capacity AS capacity",
+          "COUNT(enrollmentCourse.course_id) AS enrollmentCount",
+        ])
+        .groupBy("course.id")
+        .orderBy("enrollmentCount", "DESC")
+        .limit(5)
+        .getRawMany();
+    } catch (e) {
+      console.error("Top courses query failed:", e);
+    }
 
     return {
       studentCount,
+      teacherCount,
+      courseCount,
+      departmentCount,
       enrollmentCount,
+      pendingEnrollmentsCount,
       activeSemester,
-      topCourses: topCourses.map((item) => ({
-        id: item.course_id,
-        name: item.course_name,
-        code: item.course_code,
-        enrollmentCount: Number(item.enrollmentCount),
+      topCourses: (topCourses || []).map((item) => ({
+        id: item.id || item.course_id,
+        name: item.name || item.course_name,
+        code: item.code || item.course_code,
+        capacity: Number(item.capacity || 30),
+        enrollmentCount: Number(item.enrollmentCount || 0),
       })),
     };
   }
 
   async getStudentDashboard(userId: string) {
-    const user = await AppDataSource.getRepository(User).findOne({ where: { id: userId } });
-
-    if (!user) {
-      throw new AppError("User not found", 404);
-    }
-
     const student = await AppDataSource.getRepository(Student).findOne({
-      where: { user: { id: userId } as any },
-      relations: ["department", "enrollments", "enrollments.enrollmentCourses", "enrollments.enrollmentCourses.course"],
+      where: [
+        { user: { id: userId } as any },
+        { userId: userId },
+        { id: userId },
+      ],
+      relations: [
+        "user",
+        "department",
+        "enrollments",
+        "enrollments.semester",
+        "enrollments.enrollmentCourses",
+        "enrollments.enrollmentCourses.course",
+        "enrollments.enrollmentCourses.course.teacher",
+        "enrollments.enrollmentCourses.course.teacher.user",
+        "enrollments.enrollmentCourses.course.schedules",
+        "enrollments.enrollmentCourses.course.department",
+      ],
     });
 
     if (!student) {
@@ -63,41 +93,68 @@ class DashboardService {
       where: { student: { id: student.id } as any },
       relations: ["course"],
       order: { created_at: "DESC" },
-      take: 5,
+      take: 10,
     });
 
     const pendingEnrollments = await AppDataSource.getRepository(Enrollment).find({
-      where: { student: { id: student.id } as any },
+      where: { student: { id: student.id } as any, status: "PENDING" as any },
     });
 
-    const credits = student.enrollments.reduce((sum, enrollment) => sum + (enrollment.total_credits ?? 0), 0);
+    const approvedEnrollments = (student.enrollments || []).filter(e => e.status === "APPROVED" || e.status === "PENDING");
+    const credits = approvedEnrollments.reduce((sum, enrollment) => sum + (enrollment.totalCredits ?? 0), 0);
+
+    const activeSemester = await AppDataSource.getRepository(Semester).findOne({
+      where: { status: SemesterStatus.ACTIVE },
+    });
+
+    const coursesMap = new Map<string, any>();
+    for (const enrollment of student.enrollments || []) {
+      for (const entry of enrollment.enrollmentCourses || []) {
+        if (entry.course && !coursesMap.has(entry.course.id)) {
+          coursesMap.set(entry.course.id, {
+            id: entry.course.id,
+            name: entry.course.name,
+            code: entry.course.code,
+            credits: entry.course.credits,
+            capacity: entry.course.capacity,
+            semesterId: enrollment.semesterId,
+            semesterName: enrollment.semester?.name,
+            enrollmentStatus: enrollment.status,
+            department: entry.course.department?.name,
+            teacher: entry.course.teacher?.user ? `${entry.course.teacher.user.firstName} ${entry.course.teacher.user.lastName}` : null,
+            schedules: entry.course.schedules || [],
+          });
+        }
+      }
+    }
 
     return {
       student: {
         id: student.id,
-        studentNumber: student.student_number,
+        studentNumber: student.studentNumber,
         department: student.department?.name ?? null,
         status: student.status,
+        name: student.user ? `${student.user.firstName} ${student.user.lastName}` : student.studentNumber,
+        email: student.user?.email,
       },
       credits,
-      courses: student.enrollments.flatMap((enrollment) =>
-        enrollment.enrollmentCourses.map((entry) => ({
-          id: entry.course?.id,
-          name: entry.course?.name,
-          code: entry.course?.code,
-          credit: entry.course?.credit,
-          semesterId: enrollment.semesterId,
-        })),
-      ),
-      pendingStatus: pendingEnrollments.filter((enrollment) => enrollment.status === "PENDING").length,
+      creditsCount: credits,
+      courses: Array.from(coursesMap.values()),
+      pendingStatus: pendingEnrollments.length,
+      pendingApprovalsCount: pendingEnrollments.length,
       latestGrades,
+      activeSemester,
     };
   }
 
   async getTeacherDashboard(userId: string) {
     const teacher = await AppDataSource.getRepository(Teacher).findOne({
-      where: { user: { id: userId } as any },
-      relations: ["department", "courses"],
+      where: [
+        { user: { id: userId } as any },
+        { userId: userId },
+        { id: userId },
+      ],
+      relations: ["user", "department", "courses"],
     });
 
     if (!teacher) {
@@ -106,26 +163,60 @@ class DashboardService {
 
     const assignedCourses = await AppDataSource.getRepository(Course).find({
       where: { teacher: { id: teacher.id } as any },
-      relations: ["enrollmentCourses", "enrollmentCourses.enrollment"],
+      relations: [
+        "department",
+        "schedules",
+        "enrollmentCourses",
+        "enrollmentCourses.enrollment",
+        "enrollmentCourses.enrollment.student",
+        "enrollmentCourses.enrollment.student.user",
+        "grades",
+      ],
     });
 
-    const studentCount = assignedCourses.reduce(
-      (total, course) => total + (course.enrollmentCourses?.length ?? 0),
+    const activeSemester = await AppDataSource.getRepository(Semester).findOne({
+      where: { status: SemesterStatus.ACTIVE },
+    });
+
+    const formattedCourses = assignedCourses.map(course => {
+      const enrolledStudents = (course.enrollmentCourses || [])
+        .filter(ec => ec.enrollment && ec.enrollment.status === 'APPROVED')
+        .map(ec => ec.enrollment?.student)
+        .filter(Boolean);
+
+      const gradedCount = (course.grades || []).filter(g => g.isPublished).length;
+
+      return {
+        id: course.id,
+        name: course.name,
+        code: course.code,
+        credits: course.credits,
+        capacity: course.capacity,
+        department: course.department?.name,
+        schedules: course.schedules || [],
+        enrolledCount: enrolledStudents.length,
+        gradedCount,
+        pendingGradesCount: Math.max(0, enrolledStudents.length - gradedCount),
+      };
+    });
+
+    const totalStudentsCount = formattedCourses.reduce(
+      (total, c) => total + c.enrolledCount,
       0,
     );
-
-    const gradeUploadStatus = assignedCourses.length > 0
-      ? { uploaded: true, totalCourses: assignedCourses.length }
-      : { uploaded: false, totalCourses: 0 };
 
     return {
       teacher: {
         id: teacher.id,
+        name: teacher.user ? `${teacher.user.firstName} ${teacher.user.lastName}` : 'Faculty',
+        email: teacher.user?.email,
         department: teacher.department?.name ?? null,
       },
-      assignedCourses,
-      studentCount,
-      gradeUploadStatus,
+      assignedCourses: formattedCourses,
+      assignedCoursesCount: formattedCourses.length,
+      studentCount: totalStudentsCount,
+      totalStudentsCount,
+      activeSemester,
     };
   }
 
@@ -160,7 +251,7 @@ class DashboardService {
         "department.name AS name",
         "department.code AS code",
         "COUNT(DISTINCT student.id) AS studentCount",
-        "COUNT(DISTINCT enrollmentCourse.id) AS enrollmentCount",
+        "COUNT(DISTINCT enrollmentCourse.course_id) AS enrollmentCount",
       ])
       .groupBy("department.id")
       .orderBy("studentCount", "DESC")
@@ -194,7 +285,7 @@ class DashboardService {
         "course.id AS id",
         "course.name AS name",
         "course.code AS code",
-        "COUNT(enrollmentCourse.id) AS enrollmentCount",
+        "COUNT(enrollmentCourse.course_id) AS enrollmentCount",
       ])
       .groupBy("course.id")
       .orderBy("enrollmentCount", "DESC")

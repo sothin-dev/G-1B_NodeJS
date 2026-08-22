@@ -15,7 +15,7 @@ export class Course extends BaseEntity {
   code: string;
 
   @Column()
-  credit: number;
+  credits: number;
 
   @Column({ name: 'department_id', nullable: true })
   departmentId: string;

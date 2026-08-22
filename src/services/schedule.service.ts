@@ -33,8 +33,8 @@ class ScheduleService {
 
     const conflictCheck = await scheduleRepository.checkConflict({
       day: data.day,
-      start_time: data.start_time,
-      end_time: data.end_time,
+      startTime: data.start_time,
+      endTime: data.end_time,
       room: data.room,
     });
 
@@ -48,8 +48,8 @@ class ScheduleService {
     const schedule = new Schedule();
     schedule.courseId = data.course_id;
     schedule.day = data.day;
-    schedule.start_time = data.start_time;
-    schedule.end_time = data.end_time;
+    schedule.startTime = data.start_time;
+    schedule.endTime = data.end_time;
     schedule.room = data.room;
 
     return scheduleRepository.saveSchedule(schedule);
@@ -69,19 +69,17 @@ class ScheduleService {
       data.room !== undefined
     ) {
       const day = data.day ?? schedule.day;
-      const start_time = data.start_time ?? schedule.start_time;
-      const end_time = data.end_time ?? schedule.end_time;
+      const startTime = data.start_time ?? schedule.startTime;
+      const endTime = data.end_time ?? schedule.endTime;
       const room = data.room ?? schedule.room;
 
-      const conflictCheck = await scheduleRepository.checkConflict(
-        {
-          day,
-          start_time,
-          end_time,
-          room,
-          excludeScheduleId: id,
-        },
-      );
+      const conflictCheck = await scheduleRepository.checkConflict({
+        day,
+        startTime,
+        endTime,
+        room,
+        excludeScheduleId: id,
+      });
 
       if (conflictCheck.hasConflict) {
         throw new AppError(
@@ -91,8 +89,8 @@ class ScheduleService {
       }
 
       schedule.day = day;
-      schedule.start_time = start_time;
-      schedule.end_time = end_time;
+      schedule.startTime = startTime;
+      schedule.endTime = endTime;
       schedule.room = room;
     }
 
@@ -117,7 +115,12 @@ class ScheduleService {
     end_time: string;
     room: string;
   }) {
-    const result = await scheduleRepository.checkConflict(data);
+    const result = await scheduleRepository.checkConflict({
+      day: data.day,
+      startTime: data.start_time,
+      endTime: data.end_time,
+      room: data.room,
+    });
 
     return {
       hasConflict: result.hasConflict,
@@ -127,8 +130,8 @@ class ScheduleService {
       conflicts: result.conflicts.map((c) => ({
         id: c.id,
         day: c.day,
-        start_time: c.start_time,
-        end_time: c.end_time,
+        startTime: c.startTime,
+        endTime: c.endTime,
         room: c.room,
         courseId: c.courseId,
       })),

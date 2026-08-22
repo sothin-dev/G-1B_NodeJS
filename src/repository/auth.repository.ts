@@ -29,6 +29,12 @@ class AuthRepository extends BaseRepository<User> {
             permission: true,
           },
         },
+        student: {
+          department: true,
+        },
+        teacher: {
+          department: true,
+        },
       },
     });
   }
@@ -36,7 +42,7 @@ class AuthRepository extends BaseRepository<User> {
   async updateRefreshToken(id: string, token: string) {
     return this.repo.update(
       { id },
-      { refresh_token: token }, 
+      { refreshToken: token },
     );
   }
 }

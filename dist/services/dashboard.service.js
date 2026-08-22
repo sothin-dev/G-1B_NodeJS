@@ -9,45 +9,77 @@ const grade_entity_1 = require("../entities/grade.entity");
 const semester_entity_1 = require("../entities/semester.entity");
 const student_entity_1 = require("../entities/student.entity");
 const teacher_entity_1 = require("../entities/teacher.entity");
-const user_entity_1 = require("../entities/user.entity");
 class DashboardService {
     async getAdminOverview() {
         const studentCount = await database_1.AppDataSource.getRepository(student_entity_1.Student).count();
+        const teacherCount = await database_1.AppDataSource.getRepository(teacher_entity_1.Teacher).count();
+        const courseCount = await database_1.AppDataSource.getRepository(course_entity_1.Course).count();
+        const departmentCount = await database_1.AppDataSource.getRepository(department_entity_1.Department).count();
         const enrollmentCount = await database_1.AppDataSource.getRepository(enrollment_entity_1.Enrollment).count();
+        const pendingEnrollmentsCount = await database_1.AppDataSource.getRepository(enrollment_entity_1.Enrollment).count({
+            where: { status: "PENDING" },
+        });
         const activeSemester = await database_1.AppDataSource.getRepository(semester_entity_1.Semester).findOne({
             where: { status: semester_entity_1.SemesterStatus.ACTIVE },
         });
-        const topCourses = await database_1.AppDataSource.getRepository(course_entity_1.Course)
-            .createQueryBuilder("course")
-            .leftJoin("course.enrollmentCourses", "enrollmentCourse")
-            .leftJoin("enrollmentCourse.enrollment", "enrollment")
-            .leftJoin("enrollment.semester", "semester")
-            .where("semester.status = :status", { status: semester_entity_1.SemesterStatus.ACTIVE })
-            .select(["course.id", "course.name", "course.code", "COUNT(enrollmentCourse.id) AS enrollmentCount"])
-            .groupBy("course.id")
-            .orderBy("enrollmentCount", "DESC")
-            .limit(5)
-            .getRawMany();
+        let topCourses = [];
+        try {
+            topCourses = await database_1.AppDataSource.getRepository(course_entity_1.Course)
+                .createQueryBuilder("course")
+                .leftJoin("course.enrollmentCourses", "enrollmentCourse")
+                .leftJoin("enrollmentCourse.enrollment", "enrollment")
+                .leftJoin("enrollment.semester", "semester")
+                .select([
+                "course.id AS id",
+                "course.name AS name",
+                "course.code AS code",
+                "course.capacity AS capacity",
+                "COUNT(enrollmentCourse.course_id) AS enrollmentCount",
+            ])
+                .groupBy("course.id")
+                .orderBy("enrollmentCount", "DESC")
+                .limit(5)
+                .getRawMany();
+        }
+        catch (e) {
+            console.error("Top courses query failed:", e);
+        }
         return {
             studentCount,
+            teacherCount,
+            courseCount,
+            departmentCount,
             enrollmentCount,
+            pendingEnrollmentsCount,
             activeSemester,
-            topCourses: topCourses.map((item) => ({
-                id: item.course_id,
-                name: item.course_name,
-                code: item.course_code,
-                enrollmentCount: Number(item.enrollmentCount),
+            topCourses: (topCourses || []).map((item) => ({
+                id: item.id || item.course_id,
+                name: item.name || item.course_name,
+                code: item.code || item.course_code,
+                capacity: Number(item.capacity || 30),
+                enrollmentCount: Number(item.enrollmentCount || 0),
             })),
         };
     }
     async getStudentDashboard(userId) {
-        const user = await database_1.AppDataSource.getRepository(user_entity_1.User).findOne({ where: { id: userId } });
-        if (!user) {
-            throw new app_error_1.AppError("User not found", 404);
-        }
         const student = await database_1.AppDataSource.getRepository(student_entity_1.Student).findOne({
-            where: { user: { id: userId } },
-            relations: ["department", "enrollments", "enrollments.enrollmentCourses", "enrollments.enrollmentCourses.course"],
+            where: [
+                { user: { id: userId } },
+                { userId: userId },
+                { id: userId },
+            ],
+            relations: [
+                "user",
+                "department",
+                "enrollments",
+                "enrollments.semester",
+                "enrollments.enrollmentCourses",
+                "enrollments.enrollmentCourses.course",
+                "enrollments.enrollmentCourses.course.teacher",
+                "enrollments.enrollmentCourses.course.teacher.user",
+                "enrollments.enrollmentCourses.course.schedules",
+                "enrollments.enrollmentCourses.course.department",
+            ],
         });
         if (!student) {
             throw new app_error_1.AppError("Student profile not found", 404);
@@ -56,55 +88,113 @@ class DashboardService {
             where: { student: { id: student.id } },
             relations: ["course"],
             order: { created_at: "DESC" },
-            take: 5,
+            take: 10,
         });
         const pendingEnrollments = await database_1.AppDataSource.getRepository(enrollment_entity_1.Enrollment).find({
-            where: { student: { id: student.id } },
+            where: { student: { id: student.id }, status: "PENDING" },
         });
-        const credits = student.enrollments.reduce((sum, enrollment) => sum + (enrollment.total_credits ?? 0), 0);
+        const approvedEnrollments = (student.enrollments || []).filter(e => e.status === "APPROVED" || e.status === "PENDING");
+        const credits = approvedEnrollments.reduce((sum, enrollment) => sum + (enrollment.totalCredits ?? 0), 0);
+        const activeSemester = await database_1.AppDataSource.getRepository(semester_entity_1.Semester).findOne({
+            where: { status: semester_entity_1.SemesterStatus.ACTIVE },
+        });
+        const coursesMap = new Map();
+        for (const enrollment of student.enrollments || []) {
+            for (const entry of enrollment.enrollmentCourses || []) {
+                if (entry.course && !coursesMap.has(entry.course.id)) {
+                    coursesMap.set(entry.course.id, {
+                        id: entry.course.id,
+                        name: entry.course.name,
+                        code: entry.course.code,
+                        credits: entry.course.credits,
+                        capacity: entry.course.capacity,
+                        semesterId: enrollment.semesterId,
+                        semesterName: enrollment.semester?.name,
+                        enrollmentStatus: enrollment.status,
+                        department: entry.course.department?.name,
+                        teacher: entry.course.teacher?.user ? `${entry.course.teacher.user.firstName} ${entry.course.teacher.user.lastName}` : null,
+                        schedules: entry.course.schedules || [],
+                    });
+                }
+            }
+        }
         return {
             student: {
                 id: student.id,
-                studentNumber: student.student_number,
+                studentNumber: student.studentNumber,
                 department: student.department?.name ?? null,
                 status: student.status,
+                name: student.user ? `${student.user.firstName} ${student.user.lastName}` : student.studentNumber,
+                email: student.user?.email,
             },
             credits,
-            courses: student.enrollments.flatMap((enrollment) => enrollment.enrollmentCourses.map((entry) => ({
-                id: entry.course?.id,
-                name: entry.course?.name,
-                code: entry.course?.code,
-                credit: entry.course?.credit,
-                semesterId: enrollment.semesterId,
-            }))),
-            pendingStatus: pendingEnrollments.filter((enrollment) => enrollment.status === "PENDING").length,
+            creditsCount: credits,
+            courses: Array.from(coursesMap.values()),
+            pendingStatus: pendingEnrollments.length,
+            pendingApprovalsCount: pendingEnrollments.length,
             latestGrades,
+            activeSemester,
         };
     }
     async getTeacherDashboard(userId) {
         const teacher = await database_1.AppDataSource.getRepository(teacher_entity_1.Teacher).findOne({
-            where: { user: { id: userId } },
-            relations: ["department", "courses"],
+            where: [
+                { user: { id: userId } },
+                { userId: userId },
+                { id: userId },
+            ],
+            relations: ["user", "department", "courses"],
         });
         if (!teacher) {
             throw new app_error_1.AppError("Teacher profile not found", 404);
         }
         const assignedCourses = await database_1.AppDataSource.getRepository(course_entity_1.Course).find({
             where: { teacher: { id: teacher.id } },
-            relations: ["enrollmentCourses", "enrollmentCourses.enrollment"],
+            relations: [
+                "department",
+                "schedules",
+                "enrollmentCourses",
+                "enrollmentCourses.enrollment",
+                "enrollmentCourses.enrollment.student",
+                "enrollmentCourses.enrollment.student.user",
+                "grades",
+            ],
         });
-        const studentCount = assignedCourses.reduce((total, course) => total + (course.enrollmentCourses?.length ?? 0), 0);
-        const gradeUploadStatus = assignedCourses.length > 0
-            ? { uploaded: true, totalCourses: assignedCourses.length }
-            : { uploaded: false, totalCourses: 0 };
+        const activeSemester = await database_1.AppDataSource.getRepository(semester_entity_1.Semester).findOne({
+            where: { status: semester_entity_1.SemesterStatus.ACTIVE },
+        });
+        const formattedCourses = assignedCourses.map(course => {
+            const enrolledStudents = (course.enrollmentCourses || [])
+                .filter(ec => ec.enrollment && ec.enrollment.status === 'APPROVED')
+                .map(ec => ec.enrollment?.student)
+                .filter(Boolean);
+            const gradedCount = (course.grades || []).filter(g => g.isPublished).length;
+            return {
+                id: course.id,
+                name: course.name,
+                code: course.code,
+                credits: course.credits,
+                capacity: course.capacity,
+                department: course.department?.name,
+                schedules: course.schedules || [],
+                enrolledCount: enrolledStudents.length,
+                gradedCount,
+                pendingGradesCount: Math.max(0, enrolledStudents.length - gradedCount),
+            };
+        });
+        const totalStudentsCount = formattedCourses.reduce((total, c) => total + c.enrolledCount, 0);
         return {
             teacher: {
                 id: teacher.id,
+                name: teacher.user ? `${teacher.user.firstName} ${teacher.user.lastName}` : 'Faculty',
+                email: teacher.user?.email,
                 department: teacher.department?.name ?? null,
             },
-            assignedCourses,
-            studentCount,
-            gradeUploadStatus,
+            assignedCourses: formattedCourses,
+            assignedCoursesCount: formattedCourses.length,
+            studentCount: totalStudentsCount,
+            totalStudentsCount,
+            activeSemester,
         };
     }
     async getEnrollmentTrend() {
@@ -136,7 +226,7 @@ class DashboardService {
             "department.name AS name",
             "department.code AS code",
             "COUNT(DISTINCT student.id) AS studentCount",
-            "COUNT(DISTINCT enrollmentCourse.id) AS enrollmentCount",
+            "COUNT(DISTINCT enrollmentCourse.course_id) AS enrollmentCount",
         ])
             .groupBy("department.id")
             .orderBy("studentCount", "DESC")
@@ -166,7 +256,7 @@ class DashboardService {
             "course.id AS id",
             "course.name AS name",
             "course.code AS code",
-            "COUNT(enrollmentCourse.id) AS enrollmentCount",
+            "COUNT(enrollmentCourse.course_id) AS enrollmentCount",
         ])
             .groupBy("course.id")
             .orderBy("enrollmentCount", "DESC")

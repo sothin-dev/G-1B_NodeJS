@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EnrollmentService = void 0;
-// src/services/enrollment.service.ts
 const database_1 = require("../config/database");
 const enrollment_entity_1 = require("../entities/enrollment.entity");
 const enrollment_course_entity_1 = require("../entities/enrollment-course.entity");
@@ -22,9 +21,13 @@ class EnrollmentService {
         const query = this.enrollmentRepo.createQueryBuilder('enrollment')
             .leftJoinAndSelect('enrollment.student', 'student')
             .leftJoinAndSelect('student.user', 'user')
+            .leftJoinAndSelect('student.department', 'studentDept')
             .leftJoinAndSelect('enrollment.semester', 'semester')
             .leftJoinAndSelect('enrollment.enrollmentCourses', 'enrollmentCourses')
             .leftJoinAndSelect('enrollmentCourses.course', 'course')
+            .leftJoinAndSelect('course.department', 'courseDept')
+            .leftJoinAndSelect('course.teacher', 'teacher')
+            .leftJoinAndSelect('teacher.user', 'teacherUser')
             .orderBy('enrollment.created_at', 'DESC');
         if (filters.studentId)
             query.andWhere('enrollment.studentId = :studentId', { studentId: filters.studentId });
@@ -37,29 +40,46 @@ class EnrollmentService {
     async getEnrollment(enrollmentId) {
         const enrollment = await this.enrollmentRepo.findOne({
             where: { id: enrollmentId },
-            relations: ['student', 'student.user', 'semester', 'enrollmentCourses', 'enrollmentCourses.course'],
+            relations: [
+                'student',
+                'student.user',
+                'student.department',
+                'semester',
+                'enrollmentCourses',
+                'enrollmentCourses.course',
+                'enrollmentCourses.course.department',
+                'enrollmentCourses.course.teacher',
+                'enrollmentCourses.course.teacher.user',
+            ],
         });
         if (!enrollment)
             throw new app_error_1.AppError('Enrollment not found', 404);
         return enrollment;
     }
-    // ─── Enroll student in courses ───────────────────────────────────────────
-    async enroll(studentId, semesterId, courseIds) {
-        // 1. Validate student exists and is ACTIVE
+    async enroll(studentId, semesterId, courseIds = []) {
         const student = await this.studentRepo.findOne({ where: { id: studentId } });
         if (!student)
             throw new app_error_1.AppError('Student not found', 404);
         if (student.status !== 'ACTIVE') {
             throw new app_error_1.AppError(`Cannot enroll — student status is ${student.status}`, 403);
         }
-        // 2. Validate semester is ACTIVE
-        const semester = await this.semesterRepo.findOne({ where: { id: semesterId } });
+        let targetSemesterId = semesterId;
+        if (!targetSemesterId) {
+            const activeSem = await this.semesterRepo.findOne({ where: { status: semester_entity_1.SemesterStatus.ACTIVE } });
+            if (!activeSem) {
+                throw new app_error_1.AppError('No active semester found for enrollment', 400);
+            }
+            targetSemesterId = activeSem.id;
+        }
+        const semester = await this.semesterRepo.findOne({ where: { id: targetSemesterId } });
         if (!semester)
             throw new app_error_1.AppError('Semester not found', 404);
         if (semester.status !== 'ACTIVE') {
             throw new app_error_1.AppError(`Cannot enroll — semester is ${semester.status}`, 403);
         }
-        // 3. Load requested courses with their schedules
+        if (!courseIds || courseIds.length === 0) {
+            throw new app_error_1.AppError('At least one course must be selected for enrollment', 400);
+        }
         const courses = await this.courseRepo.find({
             where: courseIds.map((id) => ({ id })),
             relations: ['schedules'],
@@ -67,52 +87,46 @@ class EnrollmentService {
         if (courses.length !== courseIds.length) {
             throw new app_error_1.AppError('One or more courses not found', 404);
         }
-        // 4. Validate credit limit
-        const totalCredits = courses.reduce((sum, c) => sum + c.credit, 0);
+        const totalCredits = courses.reduce((sum, c) => sum + (c.credits || 0), 0);
         if (totalCredits > MAX_CREDITS) {
             throw new app_error_1.AppError(`Total credits (${totalCredits}) exceeds the maximum allowed (${MAX_CREDITS})`, 400);
         }
-        // 5. Check for duplicate enrollment in same semester
         const existing = await this.enrollmentRepo.findOne({
-            where: { student: { id: studentId }, semester: { id: semesterId } },
+            where: { student: { id: studentId }, semester: { id: targetSemesterId } },
             relations: ['enrollmentCourses', 'enrollmentCourses.course'],
         });
-        if (existing) {
-            const alreadyEnrolled = existing.enrollmentCourses.map((ec) => ec.course.id);
+        if (existing && existing.status !== enrollment_entity_1.EnrollmentStatus.CANCELLED && existing.status !== enrollment_entity_1.EnrollmentStatus.REJECTED) {
+            const alreadyEnrolled = (existing.enrollmentCourses || []).map((ec) => ec.course?.id).filter(Boolean);
             const duplicate = courseIds.find((id) => alreadyEnrolled.includes(id));
             if (duplicate) {
                 throw new app_error_1.AppError(`Already enrolled in course ID ${duplicate} this semester`, 409);
             }
         }
-        // 6. Validate schedule conflicts (new courses vs each other)
         this.validateScheduleConflicts(courses);
-        // 7. If student already has an enrollment this semester, also check
-        //    new courses against already-enrolled course schedules
-        if (existing) {
-            const existingCourses = existing.enrollmentCourses.map((ec) => ec.course);
-            const existingWithSchedules = await this.courseRepo.find({
-                where: existingCourses.map((c) => ({ id: c.id })),
-                relations: ['schedules'],
-            });
-            this.validateScheduleConflicts([...existingWithSchedules, ...courses]);
+        if (existing && existing.enrollmentCourses && existing.enrollmentCourses.length > 0 && existing.status === enrollment_entity_1.EnrollmentStatus.APPROVED) {
+            const existingCourses = existing.enrollmentCourses.map((ec) => ec.course).filter(Boolean);
+            if (existingCourses.length > 0) {
+                const existingWithSchedules = await this.courseRepo.find({
+                    where: existingCourses.map((c) => ({ id: c.id })),
+                    relations: ['schedules'],
+                });
+                this.validateScheduleConflicts([...existingWithSchedules, ...courses]);
+            }
         }
-        // 8. Create enrollment record
         const enrollment = this.enrollmentRepo.create({
             student: { id: studentId },
-            semester: { id: semesterId },
+            semester: { id: targetSemesterId },
             status: enrollment_entity_1.EnrollmentStatus.PENDING,
-            total_credits: totalCredits,
+            totalCredits: totalCredits,
         });
         const savedEnrollment = await this.enrollmentRepo.save(enrollment);
-        // 9. Create enrollment_courses join records
         const enrollmentCourses = courses.map((course) => this.enrollmentCourseRepo.create({
             enrollment: savedEnrollment,
             course,
         }));
         await this.enrollmentCourseRepo.save(enrollmentCourses);
-        return savedEnrollment;
+        return this.getEnrollment(savedEnrollment.id);
     }
-    // ─── Approve enrollment ───────────────────────────────────────────────────
     async approve(enrollmentId) {
         const enrollment = await this.enrollmentRepo.findOne({
             where: { id: enrollmentId },
@@ -123,18 +137,20 @@ class EnrollmentService {
         if (enrollment.status !== 'PENDING') {
             throw new app_error_1.AppError(`Cannot approve — enrollment is already ${enrollment.status}`, 400);
         }
-        // Check course capacities
-        for (const ec of enrollment.enrollmentCourses) {
+        for (const ec of enrollment.enrollmentCourses || []) {
             const course = ec.course;
-            const enrolledCount = await this.enrollmentCourseRepo.count({
-                where: { course: { id: course.id } },
-            });
-            if (enrolledCount >= course.capacity) {
-                throw new app_error_1.AppError(`Course "${course.name}" is full (capacity: ${course.capacity})`, 409);
+            if (course) {
+                const enrolledCount = await this.enrollmentCourseRepo.count({
+                    where: { course: { id: course.id } },
+                });
+                if (course.capacity && enrolledCount >= course.capacity) {
+                    throw new app_error_1.AppError(`Course "${course.name}" is full (capacity: ${course.capacity})`, 409);
+                }
             }
         }
         enrollment.status = enrollment_entity_1.EnrollmentStatus.APPROVED;
-        return this.enrollmentRepo.save(enrollment);
+        await this.enrollmentRepo.save(enrollment);
+        return this.getEnrollment(enrollment.id);
     }
     async reject(enrollmentId, reason) {
         const enrollment = await this.getEnrollment(enrollmentId);
@@ -142,13 +158,9 @@ class EnrollmentService {
             throw new app_error_1.AppError(`Cannot reject — enrollment is already ${enrollment.status}`, 400);
         }
         enrollment.status = enrollment_entity_1.EnrollmentStatus.REJECTED;
-        if (reason) {
-            ;
-            enrollment.rejectionReason = reason;
-        }
-        return this.enrollmentRepo.save(enrollment);
+        await this.enrollmentRepo.save(enrollment);
+        return this.getEnrollment(enrollment.id);
     }
-    // ─── Cancel enrollment ────────────────────────────────────────────────────
     async cancel(enrollmentId, studentId) {
         const enrollment = await this.enrollmentRepo.findOne({
             where: studentId ? { id: enrollmentId, student: { id: studentId } } : { id: enrollmentId },
@@ -160,7 +172,8 @@ class EnrollmentService {
             throw new app_error_1.AppError('Enrollment is already cancelled', 400);
         }
         enrollment.status = enrollment_entity_1.EnrollmentStatus.CANCELLED;
-        return this.enrollmentRepo.save(enrollment);
+        await this.enrollmentRepo.save(enrollment);
+        return this.getEnrollment(enrollment.id);
     }
     async bulkApprove(enrollmentIds) {
         const results = [];
@@ -169,13 +182,25 @@ class EnrollmentService {
         }
         return results;
     }
-    async validateSelection(studentId, semesterId, courseIds) {
+    async validateSelection(studentId, semesterId, courseIds = []) {
         const student = await this.studentRepo.findOne({ where: { id: studentId } });
         if (!student)
             throw new app_error_1.AppError('Student not found', 404);
-        const semester = await this.semesterRepo.findOne({ where: { id: semesterId } });
-        if (!semester)
-            throw new app_error_1.AppError('Semester not found', 404);
+        let targetSemesterId = semesterId;
+        if (!targetSemesterId) {
+            const activeSem = await this.semesterRepo.findOne({ where: { status: semester_entity_1.SemesterStatus.ACTIVE } });
+            targetSemesterId = activeSem?.id;
+        }
+        const semester = targetSemesterId ? await this.semesterRepo.findOne({ where: { id: targetSemesterId } }) : null;
+        if (!courseIds || courseIds.length === 0) {
+            return {
+                valid: true,
+                totalCredits: 0,
+                courseCount: 0,
+                semester,
+                student,
+            };
+        }
         const courses = await this.courseRepo.find({
             where: courseIds.map((id) => ({ id })),
             relations: ['schedules'],
@@ -183,7 +208,7 @@ class EnrollmentService {
         if (courses.length !== courseIds.length) {
             throw new app_error_1.AppError('One or more courses not found', 404);
         }
-        const totalCredits = courses.reduce((sum, course) => sum + course.credit, 0);
+        const totalCredits = courses.reduce((sum, course) => sum + (course.credits || 0), 0);
         if (totalCredits > MAX_CREDITS) {
             throw new app_error_1.AppError(`Total credits (${totalCredits}) exceeds the maximum allowed (${MAX_CREDITS})`, 400);
         }
@@ -200,26 +225,30 @@ class EnrollmentService {
         const enrollment = await this.getEnrollment(enrollmentId);
         return enrollment.enrollmentCourses?.map((item) => item.course) ?? [];
     }
-    // ─── Get student's enrolled courses ──────────────────────────────────────
     async getMyCourses(studentId, semesterId) {
-        return this.enrollmentRepo.findOne({
+        return this.enrollmentRepo.find({
             where: semesterId
                 ? { student: { id: studentId }, semester: { id: semesterId } }
                 : { student: { id: studentId } },
             relations: [
+                'semester',
                 'enrollmentCourses',
                 'enrollmentCourses.course',
+                'enrollmentCourses.course.department',
+                'enrollmentCourses.course.teacher',
+                'enrollmentCourses.course.teacher.user',
                 'enrollmentCourses.course.schedules',
             ],
             order: { created_at: 'DESC' },
         });
     }
-    // ─── Schedule conflict validator ──────────────────────────────────────────
     validateScheduleConflicts(courses) {
         const schedules = [];
         for (const course of courses) {
-            for (const schedule of course.schedules) {
-                schedules.push({ schedule, courseName: course.name });
+            if (course.schedules && Array.isArray(course.schedules)) {
+                for (const schedule of course.schedules) {
+                    schedules.push({ schedule, courseName: course.name });
+                }
             }
         }
         for (let i = 0; i < schedules.length; i++) {
@@ -229,8 +258,8 @@ class EnrollmentService {
                 if (a.schedule.day === b.schedule.day && this.timesOverlap(a.schedule, b.schedule)) {
                     throw new app_error_1.AppError(`Schedule conflict: "${a.courseName}" and "${b.courseName}" ` +
                         `overlap on ${a.schedule.day} ` +
-                        `(${a.schedule.start_time}–${a.schedule.end_time} vs ` +
-                        `${b.schedule.start_time}–${b.schedule.end_time})`, 409);
+                        `(${a.schedule.startTime}–${a.schedule.endTime} vs ` +
+                        `${b.schedule.startTime}–${b.schedule.endTime})`, 409);
                 }
             }
         }
@@ -240,11 +269,10 @@ class EnrollmentService {
             const [h, m] = time.split(':').map(Number);
             return h * 60 + m;
         };
-        const aStart = toMinutes(a.start_time);
-        const aEnd = toMinutes(a.end_time);
-        const bStart = toMinutes(b.start_time);
-        const bEnd = toMinutes(b.end_time);
-        // Overlap if one starts before the other ends
+        const aStart = toMinutes(a.startTime);
+        const aEnd = toMinutes(a.endTime);
+        const bStart = toMinutes(b.startTime);
+        const bEnd = toMinutes(b.endTime);
         return aStart < bEnd && bStart < aEnd;
     }
 }

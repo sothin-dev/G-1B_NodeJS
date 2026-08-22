@@ -18,12 +18,11 @@ class TeacherRepository extends BaseRepository<Teacher> {
 
   async findByUserId(userId: string) {
     return this.repo.findOne({
-      where: {
-        user: {
-          id: userId,
-        },
-      },
-      relations: ["user"],
+      where: [
+        { user: { id: userId } },
+        { userId: userId },
+      ],
+      relations: ["user", "department", "courses"],
     });
   }
 }

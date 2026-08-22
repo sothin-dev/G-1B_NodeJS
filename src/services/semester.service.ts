@@ -18,7 +18,7 @@ class SemesterService {
       query.andWhere("semester.year = :year", { year });
     }
 
-    return query.orderBy("semester.year", "DESC").addOrderBy("semester.start_date", "DESC").getMany();
+    return query.orderBy("semester.year", "DESC").addOrderBy("semester.startDate", "DESC").getMany();
   }
 
   async createSemester(data: CreateSemesterDto) {
@@ -34,8 +34,8 @@ class SemesterService {
     return semesterRepository.create({
       name: data.name,
       year: data.year,
-      start_date: new Date(data.start_date),
-      end_date: new Date(data.end_date),
+      startDate: new Date(data.start_date),
+      endDate: new Date(data.end_date),
       status: SemesterStatus.UPCOMING,
     });
   }
@@ -61,8 +61,8 @@ class SemesterService {
       throw new AppError("Semester not found", 404);
     }
 
-    const updatedStartDate = data.start_date ? new Date(data.start_date) : semester.start_date;
-    const updatedEndDate = data.end_date ? new Date(data.end_date) : semester.end_date;
+    const updatedStartDate = data.start_date ? new Date(data.start_date) : semester.startDate;
+    const updatedEndDate = data.end_date ? new Date(data.end_date) : semester.endDate;
 
     if (updatedStartDate > updatedEndDate) {
       throw new AppError("Semester start_date must be before end_date", 400);
@@ -79,8 +79,8 @@ class SemesterService {
 
     return semesterRepository.update(id, {
       ...data,
-      start_date: data.start_date ? new Date(data.start_date) : undefined,
-      end_date: data.end_date ? new Date(data.end_date) : undefined,
+      startDate: data.start_date ? new Date(data.start_date) : undefined,
+      endDate: data.end_date ? new Date(data.end_date) : undefined,
     });
   }
 

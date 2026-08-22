@@ -20,13 +20,13 @@ let User = class User extends baseEntity_1.BaseEntity {
 };
 exports.User = User;
 __decorate([
-    (0, typeorm_1.Column)(),
+    (0, typeorm_1.Column)({ name: "first_name" }),
     __metadata("design:type", String)
-], User.prototype, "first_name", void 0);
+], User.prototype, "firstName", void 0);
 __decorate([
-    (0, typeorm_1.Column)(),
+    (0, typeorm_1.Column)({ name: "last_name" }),
     __metadata("design:type", String)
-], User.prototype, "last_name", void 0);
+], User.prototype, "lastName", void 0);
 __decorate([
     (0, typeorm_1.Column)({ unique: true }),
     __metadata("design:type", String)
@@ -40,16 +40,17 @@ __decorate([
     __metadata("design:type", String)
 ], User.prototype, "roleId", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ default: true }),
+    (0, typeorm_1.Column)({ name: "is_active", default: true }),
     __metadata("design:type", Boolean)
-], User.prototype, "is_active", void 0);
+], User.prototype, "isActive", void 0);
 __decorate([
     (0, typeorm_1.Column)({
-        type: 'text',
+        name: "refresh_token",
+        type: "text",
         nullable: true,
     }),
     __metadata("design:type", String)
-], User.prototype, "refresh_token", void 0);
+], User.prototype, "refreshToken", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => role_entity_1.Role, (role) => role.users),
     (0, typeorm_1.JoinColumn)({ name: "role_id" }),

@@ -25,7 +25,7 @@ exports.AppDataSource = new typeorm_1.DataSource({
     username: process.env.DB_USERNAME || process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    synchronize: true,
+    synchronize: process.env.DB_SYNCHRONIZE === "true",
     logging: false,
     entities: [
         role_entity_1.Role,
@@ -47,7 +47,7 @@ exports.AppDataSource = new typeorm_1.DataSource({
     connectorPackage: 'mysql2',
     extra: {
         authPlugins: {
-            caching_sha2_password: () => () => Buffer.from(process.env.DB_PASSWORD + '\0'),
+            caching_sha2_password: () => () => Buffer.from(`${process.env.DB_PASSWORD ?? ""}\0`),
         },
     },
 });

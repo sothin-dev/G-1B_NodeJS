@@ -17,8 +17,26 @@ class AuthRepository extends base_repository_1.BaseRepository {
             },
         });
     }
+    async findByIdWithRole(id) {
+        return this.repo.findOne({
+            where: { id },
+            relations: {
+                role: {
+                    rolePermissions: {
+                        permission: true,
+                    },
+                },
+                student: {
+                    department: true,
+                },
+                teacher: {
+                    department: true,
+                },
+            },
+        });
+    }
     async updateRefreshToken(id, token) {
-        return this.repo.update({ id }, { refresh_token: token });
+        return this.repo.update({ id }, { refreshToken: token });
     }
 }
 exports.default = new AuthRepository();

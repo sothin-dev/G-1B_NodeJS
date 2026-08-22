@@ -25,13 +25,13 @@ __decorate([
     __metadata("design:type", String)
 ], Schedule.prototype, "day", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'time' }),
+    (0, typeorm_1.Column)({ name: 'start_time', type: 'time' }),
     __metadata("design:type", String)
-], Schedule.prototype, "start_time", void 0);
+], Schedule.prototype, "startTime", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'time' }),
+    (0, typeorm_1.Column)({ name: 'end_time', type: 'time' }),
     __metadata("design:type", String)
-], Schedule.prototype, "end_time", void 0);
+], Schedule.prototype, "endTime", void 0);
 __decorate([
     (0, typeorm_1.Column)(),
     __metadata("design:type", String)

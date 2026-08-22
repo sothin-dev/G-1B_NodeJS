@@ -42,8 +42,8 @@ class AuthService {
 
     try {
       const user = await queryRunner.manager.save(User, {
-        first_name: data.firstName,
-        last_name: data.lastName,
+        firstName: data.firstName,
+        lastName: data.lastName,
         email: data.email,
         password: hashedPassword,
         roleId: role.id,
@@ -52,15 +52,15 @@ class AuthService {
       await queryRunner.manager.save(Student, {
         user: { id: user.id },
         status: StudentStatus.ACTIVE,
-        enrollment_year: new Date().getFullYear(),
+        enrollmentYear: new Date().getFullYear(),
       });
 
       await queryRunner.commitTransaction();
 
       return {
         id: user.id,
-        firstName: user.first_name,
-        lastName: user.last_name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
         role: role.name,
       };
@@ -84,6 +84,10 @@ class AuthService {
 
     if (!isMatch) {
       throw new AppError("Invalid email or password", 401);
+    }
+
+    if (!user.isActive) {
+      throw new AppError("Account is deactivated. Contact an administrator.", 403);
     }
 
     const payload = {
@@ -127,10 +131,22 @@ class AuthService {
     return {
       id: user.id,
       email: user.email,
-      firstName: user.first_name,
-      lastName: user.last_name,
+      firstName: user.firstName,
+      lastName: user.lastName,
       role: user.role?.name || null,
-      isActive: user.is_active,
+      isActive: user.isActive,
+      student: user.student ? {
+        id: user.student.id,
+        studentNumber: user.student.studentNumber,
+        department: user.student.department?.name,
+        departmentId: user.student.departmentId,
+        status: user.student.status,
+      } : null,
+      teacher: user.teacher ? {
+        id: user.teacher.id,
+        department: user.teacher.department?.name,
+        departmentId: user.teacher.departmentId,
+      } : null,
       permissions,
     };
   }
@@ -142,7 +158,7 @@ class AuthService {
       throw new AppError("User not found", 404);
     }
 
-    if (!user.refresh_token || user.refresh_token.trim() === "") {
+    if (!user.refreshToken || user.refreshToken.trim() === "") {
       return "User is already logged out";
     }
 

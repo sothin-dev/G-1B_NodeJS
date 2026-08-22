@@ -8,13 +8,13 @@ export class Schedule extends BaseEntity {
   courseId: string;
 
   @Column()
-  day: string; // Monday, Tuesday, etc.
+  day: string;
 
-  @Column({ type: 'time' })
-  start_time: string;
+  @Column({ name: 'start_time', type: 'time' })
+  startTime: string;
 
-  @Column({ type: 'time' })
-  end_time: string;
+  @Column({ name: 'end_time', type: 'time' })
+  endTime: string;
 
   @Column()
   room: string;

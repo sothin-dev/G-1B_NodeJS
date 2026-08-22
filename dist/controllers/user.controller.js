@@ -8,7 +8,21 @@ const api_response_1 = require("../utils/api-response");
 class UserController {
     async getAllUsers(req, res, next) {
         try {
-            const data = await user_service_1.default.GetAllUser();
+            const data = await user_service_1.default.GetAllUser({
+                search: req.query.search,
+                role: req.query.role,
+                is_active: req.query.is_active,
+                page: req.query.page ? Number(req.query.page) : undefined,
+                limit: req.query.limit ? Number(req.query.limit) : undefined,
+            });
+            if (data && typeof data === 'object' && 'items' in data) {
+                return res.status(200).json({
+                    success: true,
+                    message: "Users retrieved successfully",
+                    data: data.items,
+                    meta: data.meta,
+                });
+            }
             return (0, api_response_1.successResponse)(res, "Users retrieved successfully", data);
         }
         catch (error) {

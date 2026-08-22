@@ -36,7 +36,7 @@ router.patch(
 router.delete(
   "/:id",
   authMiddleware,
-  authorizeRoles(Roles.SUPER_ADMIN),
+  authorizeRoles(Roles.SUPER_ADMIN, Roles.ADMIN),
   courseController.deleteCourse,
 );
 

@@ -27,9 +27,9 @@ let Student = class Student extends baseEntity_1.BaseEntity {
 };
 exports.Student = Student;
 __decorate([
-    (0, typeorm_1.Column)({ unique: true, nullable: true }),
+    (0, typeorm_1.Column)({ name: "student_number", unique: true, nullable: true }),
     __metadata("design:type", String)
-], Student.prototype, "student_number", void 0);
+], Student.prototype, "studentNumber", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: "uuid", name: "department_id", nullable: true }),
     __metadata("design:type", String)
@@ -39,9 +39,13 @@ __decorate([
     __metadata("design:type", String)
 ], Student.prototype, "status", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: "int" }),
+    (0, typeorm_1.Column)({ name: "enrollment_year", type: "int" }),
     __metadata("design:type", Number)
-], Student.prototype, "enrollment_year", void 0);
+], Student.prototype, "enrollmentYear", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: "user_id", unique: true, nullable: true }),
+    __metadata("design:type", String)
+], Student.prototype, "userId", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => department_entity_1.Department, (department) => department.students),
     (0, typeorm_1.JoinColumn)({ name: "department_id" }),

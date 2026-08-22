@@ -1,13 +1,45 @@
 import { Request, Response, NextFunction } from 'express';
 import gradeService from '../services/grade.service';
 import { successResponse } from '../utils/api-response';
+import { AppDataSource } from '../config/database';
+import { Student } from '../entities/student.entity';
+import { AppError } from '../core/errors/app-error';
 
 class GradeController {
+  private async resolveCurrentStudentId(req: Request): Promise<string | null> {
+    const user = (req as any).user;
+
+    if (user?.role !== 'STUDENT') {
+      return null;
+    }
+
+    if (!user.id) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    const student = await AppDataSource.getRepository(Student).findOne({
+      where: { user: { id: user.id } },
+    });
+
+    if (!student) {
+      throw new AppError('Student profile not found for this account', 404);
+    }
+
+    return String(student.id);
+  }
+
   async listGrades(req: Request, res: Response, next: NextFunction) {
     try {
+      let studentId = req.query.studentId as string | undefined;
+
+      const currentStudentId = await this.resolveCurrentStudentId(req);
+      if (currentStudentId) {
+        studentId = currentStudentId;
+      }
+
       const result = await gradeService.listGrades({
         courseId: req.query.courseId as string | undefined,
-        studentId: req.query.studentId as string | undefined,
+        studentId,
       });
 
       return successResponse(res, 'List of grades', result);
@@ -28,6 +60,12 @@ class GradeController {
   async getGrade(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await gradeService.getGrade(req.params.id);
+      const currentStudentId = await this.resolveCurrentStudentId(req);
+
+      if (currentStudentId && result.studentId !== currentStudentId) {
+        throw new AppError('Forbidden', 403);
+      }
+
       return successResponse(res, 'Grade details', result);
     } catch (error) {
       next(error);

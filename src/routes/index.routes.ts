@@ -12,6 +12,7 @@ import enrollmentRouter from './enrollment.routes'
 import gradeRouter from './grade.routes'
 import teacherRouter from './teacher.routes'
 import dashboardRouter from './dashboard.routes'
+import activityLogRouter from './activity-log.routes'
 
 const router = Router()
 
@@ -28,5 +29,6 @@ router.use('/enrollments', enrollmentRouter)
 router.use('/grades', gradeRouter)
 router.use('/teachers', teacherRouter)
 router.use('/dashboard', dashboardRouter)
+router.use('/activity-logs', activityLogRouter)
 
 export default router
